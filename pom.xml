@@ -10,6 +10,7 @@
 
     <modules>
          <module>service-venue</module>
+         <module>backend-venue</module>
     </modules>
 
     <scm>

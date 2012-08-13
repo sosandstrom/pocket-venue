@@ -19,7 +19,7 @@
         <spring.version>3.1.1.RELEASE</spring.version>
         <spring.security.version>3.1.0.RELEASE</spring.security.version>
         <spring-social.version>1.0.1.RELEASE</spring-social.version>
-        <mardao.version>1.33-SNAPSHOT</mardao.version>
+        <mardao.version>1.33</mardao.version>
         <docrest.version>1.13</docrest.version>
         <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
     </properties>
@@ -154,11 +154,6 @@
     </build>
 
     <dependencies>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>errors</artifactId>
-            <version>${project.version}</version>
-        </dependency>
         <dependency>
             <groupId>net.sf.mardao</groupId>
             <artifactId>mardao-aed</artifactId>
