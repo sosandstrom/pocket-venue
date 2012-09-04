@@ -1,0 +1,66 @@
+
+
+TODO
+====
+Test
+
+Commit
+
+All more fields
+
+Opening hours
+
+Index on more fields
+Datastore indexes
+Cursor when searching
+
+Use datastore parent
+
+Search within a location (country/city)
+
+Bring in security and app registration, move to common
+
+
+
+REST end points
+===============
+
+api/{domain}/place                          (POST)      Create a place                                             XX
+
+api/{domain}/place/{id}                     (POST)      Update a place                                             XX
+api/{domain}/place/{id}                     (GET)       Get a place                                                XX
+api/{domain}/place/{id}                     (DELETE)    Delete a place (how to handle associated venues            XX
+
+api/{domain}/place                          (GET)       Get all places                                             XX
+api/{domain}/place/parent/{id}              (GET)       Get all places with parent id                              XX
+api/{domain}/place/hierarchy/{id}           (GET)       Get all places with hierarchy                              XX
+api/{domain}/place/tags?appTag1=&appTag2=   (GET)       Get all places matching tags                               X
+
+api/{domain}/place/nearby                   (GET)       Get places nearby
+
+api/{domain}/place?searchText=              (GET)                                                                  XX
+
+api/{domain}/place/import                   (POST)      Import places
+api/{domain}/place/export                   (GET)       Export places
+
+
+
+
+
+
+
+api/{domain}/tag/                           (POST)      Create new tag                                      XX
+api/{domain}/tag/{id}                       (POST)      Update tag                                          XX
+api/{domain}/tag/{id}                       (GET)       Get tag                                             XX
+api/{domain}/tag/{id}                       (DELETE)    Delete tag                                          XX more test needed
+
+api/{domain}/tag/typ/{name}                 (GET)       Get nested tag structure of type                    XX
+api/{domain}/tag/parent/{id}                (GET)       Get all tags for parent                             XX
+
+
+
+
+
+
+
+

@@ -7,7 +7,8 @@
 		http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.1.xsd">
 
 <!--    <b:import resource="classpath:/domain-security.xml" />-->
-        
+
+<!--
     <http pattern="/index.html" security="none" />
     
     <http pattern="/domain/*/blob/v*/*" security="none" />
@@ -36,4 +37,5 @@
     </b:bean>
 
     <b:bean id="voidAuthenticationSuccessHandler" class="com.goldengekko.users.security.VoidAuthenticationSuccessHandler" />
+-->
 </b:beans>

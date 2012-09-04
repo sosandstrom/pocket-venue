@@ -27,30 +27,29 @@
     </filter>
     <filter-mapping>
         <filter-name>domainFilter</filter-name>
-        <url-pattern>/domain/*</url-pattern>
-    </filter-mapping>
-    <filter-mapping>
-        <filter-name>domainFilter</filter-name>
-        <url-pattern>/authenticate</url-pattern>
+        <url-pattern>/api/*</url-pattern>
     </filter-mapping>
 
-    <security-constraint>
-        <web-resource-collection>
-            <url-pattern>/_admin/*</url-pattern>
-        </web-resource-collection>
-        <auth-constraint>
-            <role-name>admin</role-name>
-        </auth-constraint>
-    </security-constraint>
-    
+<!--
     <filter>
-        <filter-name>jsonpFilter</filter-name>
+        <filter-name>springSecurityFilterChain</filter-name>
         <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
     </filter>
     <filter-mapping>
-        <filter-name>jsonpFilter</filter-name>
-        <url-pattern>/domain/*</url-pattern>
+        <filter-name>springSecurityFilterChain</filter-name>
+        <url-pattern>/*</url-pattern>
     </filter-mapping>
+-->
+
+    <filter>
+        <filter-name>jsonp</filter-name>
+        <filter-class>com.wadpam.open.jsonp.JsonpCallbackFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>jsonp</filter-name>
+        <url-pattern>/api/*</url-pattern>
+    </filter-mapping>
+
 
     <servlet>
         <servlet-name>spring-dispatcher</servlet-name>
@@ -60,7 +59,7 @@
 
     <servlet-mapping>
         <servlet-name>spring-dispatcher</servlet-name>
-        <url-pattern>/domain/*</url-pattern>
+        <url-pattern>/api/*</url-pattern>
     </servlet-mapping>
     <servlet-mapping>
         <servlet-name>spring-dispatcher</servlet-name>

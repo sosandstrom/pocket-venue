@@ -1,8 +1,8 @@
 package com.wadpam.pocketvenue.web;
 
-import com.wadpam.pocketvenue.json.JMonitor;
 import static org.junit.Assert.*;
 
+import com.wadpam.open.json.JMonitor;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;

@@ -6,83 +6,34 @@
 		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
                 http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.1.xsd">
                 
-        <!-- properties --> 
-        <bean id="applicationPropertyResource" class="org.springframework.core.io.ClassPathResource">
-                <constructor-arg value="application.properties" />
-        </bean>
-        <bean  
-                class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
-                <property name="location" ref="applicationPropertyResource"/>
-                <property name="ignoreUnresolvablePlaceholders" value="true"/>
-        </bean>
-        
-             
-        <!--           Service             -->
-
-        <import resource="classpath*:spring-dao.xml" />
-        
-<!--        <bean id="connectionFactoryLocator" class="com.goldengekko.users.social.DomainConnectionFactoryRegistry" scope="request">
-            <aop:scoped-proxy/>
-            <property name="userService" ref="domainUserService" />
-        </bean>    
-        <bean id="usersConnectionRepository" class="com.goldengekko.users.social.DomainUsersConnectionRepository" scope="request">
-            <aop:scoped-proxy/>
-            <property name="userService" ref="domainUserService" />
-        </bean>
-        <bean id="signInAdapter" class="com.goldengekko.users.social.DomainSignInAdapter" />-->
-        
-        <!--           Controllers             -->
-
-<!--        <bean id="namespaceController" class="com.goldengekko.users.web.admin.NamespaceController">
-            <property name="domainUserService" ref="domainUserService" />
-        </bean>
-
-        <bean  class="com.goldengekko.users.web.PushController">
-            <property name="analyticsService" ref="analyticsService" />
-            <property name="domainUserService" ref="domainUserService" />
-        </bean>
-        
-        <bean  class="com.goldengekko.users.web.GroupController">
-		 <property name="analyticsService" ref="analyticsService" />
-            <property name="domainUserService" ref="domainUserService" />
-        </bean>
-        
-        <bean id="userController" class="com.goldengekko.users.web.UserController">
-            <property name="analyticsService" ref="analyticsService" />
-            <property name="domainUserService" ref="domainUserService" />
-        </bean>
-
-        <bean class="com.goldengekko.users.web.SignInController" >
-            <constructor-arg ref="connectionFactoryLocator" />
-            <constructor-arg ref="usersConnectionRepository" />
-            <constructor-arg ref="signInAdapter" />
-            <property name="signInUrl" value="/" />
-            <property name="signUpUrl" value="signup" />
-            <property name="postSignInUrl" value="/authenticate" />
-        </bean>
-
-        <bean class="com.goldengekko.users.web.SignUpController" >
-            <property name="signInAdapter" ref="signInAdapter" />
-            <property name="userService" ref="domainUserService" />
-        </bean>
-
-        <bean class="com.goldengekko.users.web.SignOutController" />
--->
-
-<!--            
-        <bean id="sessionController" class="com.goldengekko.users.web.SessionController">
-            <property name="analyticsService" ref="analyticsService" />
-            <property name="domainUserService" ref="domainUserService" />
-        </bean>
-        <bean id="blobController" class="com.goldengekko.users.web.BlobController">
-            <property name="analyticsService" ref="analyticsService" />
-            <property name="domainUserService" ref="domainUserService" />
-            <property name="memCache" ref="memCache"/>
-        </bean>
-        
-    <bean id="analyticsController" class="com.goldengekko.users.web.AnalyticsController">
-           	<property name="analyticsService" ref="analyticsService"/>
+    <!-- properties -->
+    <bean id="applicationPropertyResource" class="org.springframework.core.io.ClassPathResource">
+            <constructor-arg value="application.properties" />
     </bean>
--->        
-	    
+    <bean
+            class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+            <property name="location" ref="applicationPropertyResource"/>
+            <property name="ignoreUnresolvablePlaceholders" value="true"/>
+    </bean>
+
+
+    <!--           Service             -->
+
+    <import resource="classpath*:spring-dao.xml" />
+
+    <bean id="venueService" class="com.wadpam.pocketvenue.service.VenueService">
+        <property name="placeDao" ref="dPlaceDao" />
+        <property name="tagDao" ref="dTagDao" />
+    </bean>
+
+    <!--           Controllers             -->
+
+    <bean id="venueController" class="com.wadpam.pocketvenue.web.VenueController">
+        <property name="venueService" ref="venueService" />
+    </bean>
+
+    <bean id="tagController" class="com.wadpam.pocketvenue.web.TagController">
+        <property name="venueService" ref="venueService" />
+    </bean>
+
 </beans>
