@@ -10,8 +10,6 @@ import com.google.appengine.api.datastore.Key;
  * Generated on 2012-09-03T08:07:56.959+0700.
  * @author mardao DAO generator (net.sf.mardao.plugin.ProcessDomainMojo)
  */
-public interface DTagDao extends GeneratedDTagDao<Key, Key> {
-
-
+public interface DTagDao extends GeneratedDTagDao {
 
 }

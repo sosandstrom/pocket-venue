@@ -1,5 +1,7 @@
 package com.wadpam.pocketvenue.web;
 
+import com.google.appengine.api.memcache.MemcacheService;
+import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.wadpam.docrest.domain.RestCode;
 import com.wadpam.docrest.domain.RestReturn;
 import com.wadpam.pocketvenue.domain.DTag;
@@ -32,6 +34,7 @@ import java.util.Map;
 public class TagController {
 
     static final Logger LOG = LoggerFactory.getLogger(TagController.class);
+    static final String TAG_CACHE_KEY = "tagKey:";
 
     private VenueService venueService;
 
@@ -54,9 +57,21 @@ public class TagController {
                                @RequestParam(required = true) String type,
                                @RequestParam(required = true) String name) {
 
-        final DTag body = venueService.addTag(domain, type, parentId, name);
+        final DTag body = venueService.addTag(type, parentId, name);
+
+        // Invalidate the memcache
+        MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
+        memCache.delete(tagCacheKey(body));
 
         return new RedirectView(request.getRequestURI() + "/" + body.getId().toString());
+    }
+
+    // Build the cache key for memcache
+    private String tagCacheKey(DTag dTag) {
+        if (null == dTag || null == dTag.getType() || dTag.getType().isEmpty())
+            return TAG_CACHE_KEY + "DEFAULT";
+        else
+            return TAG_CACHE_KEY + dTag.getType();
     }
 
     /**
@@ -78,7 +93,11 @@ public class TagController {
                                   @RequestParam(required = false) String type,
                                   @RequestParam(required = false) String name) {
 
-        final DTag body = venueService.updateTag(domain, id, type, parentId, name);
+        final DTag body = venueService.updateTag(id, type, parentId, name);
+
+        // Invalidate the memcache
+        MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
+        memCache.delete(tagCacheKey(body));
 
         return new RedirectView(request.getRequestURI());
     }
@@ -98,9 +117,9 @@ public class TagController {
                                        @PathVariable String domain,
                                        @PathVariable Long id) {
 
-        final DTag body = venueService.getTag(domain, id);
+        final DTag body = venueService.getTag(id);
 
-        return new ResponseEntity<JTag>(Converter.convert(body, request), HttpStatus.OK);
+        return new ResponseEntity<JTag>(Converter.convert(body), HttpStatus.OK);
     }
 
     /**
@@ -118,59 +137,71 @@ public class TagController {
                                           @PathVariable String domain,
                                           @PathVariable Long id) {
 
-        final DTag body = venueService.deleteTag(domain, id);
+        final DTag body = venueService.deleteTag(id);
+
+        // Invalidate the memcache
+        MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
+        memCache.delete(tagCacheKey(body));
 
         return new ResponseEntity<JTag>(HttpStatus.OK);
     }
 
     /**
      * Get full hierarchy of tags of a certain type.
-     * @param name the type of the tag, e.g. "location" or "category". D
+     * @param type the type of the tag, e.g. "location" or "category". D
      * @return a full tag hierarchy
      */
     @RestReturn(value=JTag.class, entity=JTag.class, code={
             @RestCode(code=200, message="OK", description="Tags found"),
             @RestCode(code=404, message="NOK", description="Tags not found")
     })
-    @RequestMapping(value="type/{name}", method= RequestMethod.GET)
+    @RequestMapping(value="type/{type}", method= RequestMethod.GET)
     public ResponseEntity<Collection<JTag>> getTagHierarchyForType(HttpServletRequest request,
                                                        Principal principal,
                                                        @PathVariable String domain,
-                                                       @PathVariable String name) {
-        // TODO: Need to support caching of the JSON
+                                                       @PathVariable String type) {
 
+        // Check the cache first
+        MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
+        Collection<JTag> jTags = (Collection<JTag>)memCache.get(TAG_CACHE_KEY + type);
 
-        final Collection<DTag> dTags = venueService.getTagsForType(domain, name);
+        if (null == jTags) {
 
-        // Arrange in a hierarchy
-        Collection<JTag> rootTags = new ArrayList<JTag>();
-        Map<String, Collection<JTag>> remainingTags = new HashMap<String, Collection<JTag>>();
+            final Collection<DTag> dTags = venueService.getTagsForType(type);
 
-        // Get root and non-root tags
-        for (DTag dTag : dTags) {
-            // Convert to JTag before we do anything
-            JTag jTag = Converter.convert(dTag, request);
+            // Arrange in a hierarchy
+            jTags = new ArrayList<JTag>();
+            Map<Long, Collection<JTag>> remainingTags = new HashMap<Long, Collection<JTag>>();
 
-            if (null == dTag.getParentId())
-                rootTags.add(jTag);
-            else {
-                Collection<JTag> children = remainingTags.get(jTag.getParentId());
-                if (null == children) {
-                    children = new ArrayList<JTag>();
-                    remainingTags.put(jTag.getParentId(), children);
+            // Split in root and non-root tags
+            for (DTag dTag : dTags) {
+                // Convert to JTag before we do anything
+                JTag jTag = Converter.convert(dTag);
+
+                if (null == dTag.getParentKey())
+                    jTags.add(jTag);
+                else {
+                    Collection<JTag> children = remainingTags.get(jTag.getParentId());
+                    if (null == children) {
+                        children = new ArrayList<JTag>();
+                        remainingTags.put(jTag.getParentId(), children);
+                    }
+                    children.add(jTag);
                 }
-                children.add(jTag);
             }
+
+            for (JTag parentTag : jTags)
+                addChildren(parentTag, remainingTags);
+
+            // Update memcache
+            memCache.put(TAG_CACHE_KEY + type, jTags);
         }
 
-        for (JTag parentTag : rootTags)
-            addChildren(parentTag, remainingTags);
-
-        return new ResponseEntity<Collection<JTag>>(rootTags, HttpStatus.OK);
+        return new ResponseEntity<Collection<JTag>>(jTags, HttpStatus.OK);
     }
 
     // Build a hierarchy of tags
-    private void addChildren(JTag parentTag, Map<String, Collection<JTag>> tags) {
+    private void addChildren(JTag parentTag, Map<Long, Collection<JTag>> tags) {
         //LOG.debug(String.format("Add children for parent:%s, remaining tags:%s", parentTag, tags));
         Collection<JTag> childTags = tags.get(parentTag.getId());
 
@@ -201,11 +232,10 @@ public class TagController {
                                                  @PathVariable String domain,
                                                  @PathVariable Long id) {
 
-        final Collection<DTag> body = venueService.getTagsForParent(domain, id);
+        final Collection<DTag> body = venueService.getTagsForParent(id);
 
-        return new ResponseEntity<Collection<JTag>>((Collection<JTag>)Converter.convert(body, request), HttpStatus.OK);
+        return new ResponseEntity<Collection<JTag>>((Collection<JTag>)Converter.convert(body), HttpStatus.OK);
     }
-
 
 
     // Setters

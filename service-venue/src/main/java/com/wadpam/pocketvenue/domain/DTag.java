@@ -1,31 +1,28 @@
 package com.wadpam.pocketvenue.domain;
 
+import com.google.appengine.api.datastore.Key;
+import net.sf.mardao.api.Parent;
 import net.sf.mardao.api.domain.AEDLongEntity;
+import net.sf.mardao.core.domain.AbstractLongEntity;
 
 import javax.persistence.Basic;
 import javax.persistence.Entity;
 import javax.persistence.Id;
-import java.util.Collection;
 
 /**
  * Represent and hierarchical tag
  * @author mattiaslevin
  */
 @Entity
-public class DTag extends AEDLongEntity  {
+public class DTag extends AbstractLongEntity {
 
-
-    /** Generated primary key */
-    @Id
-    private Long               id;
+    /** The parent tag id */
+    @Parent(kind = "DTag")
+    private Key                parentKey;
 
     /** The type of the tags, e.g. "location", "category" */
     @Basic
     private String             type;
-
-    /** The parent tag id */
-    @Basic
-    private Long               parentId;
 
     /** The tag name */
     @Basic
@@ -33,25 +30,12 @@ public class DTag extends AEDLongEntity  {
 
 
     @Override
-    public Long getSimpleKey() {
-        return id;
-    }
-
-    @Override
     public String toString() {
-        return String.format("{id:%d, name:%s}", id, name);
+        return String.format("{id:%d, name:%s}", getId(), name);
     }
 
 
     // Setters and getters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
     public String getName() {
         return name;
     }
@@ -60,12 +44,12 @@ public class DTag extends AEDLongEntity  {
         this.name = name;
     }
 
-    public Long getParentId() {
-        return parentId;
+    public Key getParentKey() {
+        return parentKey;
     }
 
-    public void setParentId(Long parentId) {
-        this.parentId = parentId;
+    public void setParentKey(Key parentKey) {
+        this.parentKey = parentKey;
     }
 
     public String getType() {

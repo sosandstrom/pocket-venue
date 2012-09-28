@@ -2,23 +2,47 @@
 
 TODO
 ====
-Test
 
-Commit
-
-All more fields
-
-Opening hours
-
-Index on more fields
-Datastore indexes
-Cursor when searching
-
-Use datastore parent
-
-Search within a location (country/city)
+Datastore indexes config
 
 Bring in security and app registration, move to common
+
+Check in? Or is this Locations
+
+Upload a CSV file to create the venues
+
+Integration with Google places?
+
+Add url to categories. Generalize. Move to Open.
+
+Add the localization of text (same as TwoForOne categories). Also URL. Move to open.
+
+Tag or Category. Category and i18nTranslation
+
+Alphabetic sort
+
+Fixed namespace AOP
+
+
+
+
+
+Done
+====
+Test
+Commit
+
+Cursor when searching
+Search within a location (country/city)
+
+Add more fields
+Index on more fields
+Transactions
+Put tag JSON in the cache.
+
+Opening hours
+Use datastore parent. Need to override.
+Nearby
 
 
 

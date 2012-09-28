@@ -3,19 +3,19 @@ package com.wadpam.pocketvenue.web;
 import com.wadpam.docrest.domain.RestCode;
 import com.wadpam.docrest.domain.RestReturn;
 import com.wadpam.pocketvenue.domain.DPlace;
+import com.wadpam.pocketvenue.json.JLocation;
 import com.wadpam.pocketvenue.json.JVenue;
 import com.wadpam.pocketvenue.json.JVenuePage;
 import com.wadpam.pocketvenue.service.VenueService;
+import com.wadpam.server.exceptions.BadRequestException;
 import com.wadpam.server.web.AbstractRestController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.view.RedirectView;
 
 import javax.servlet.http.HttpServletRequest;
@@ -37,14 +37,30 @@ public class VenueController extends AbstractRestController {
     private VenueService venueService;
 
     /**
-     * Add a venue.
+     * Create a venue.
      * @param name the name of the venue
      * @param parentId Optional. The id of the parent venue this venue belong to
      * @param hierarchy Optional. The hierarchy level this venue belong to
      * @param shortDescription Optional. A short description of the venue
      * @param description Optional. A description of the venue
-     * @param appTags1 Optional. A list of app specific tags group 1
-     * @param appTags2 Optional. A list of app specific tags group 2
+     * @param openingHours Optional. A list of string describing the opening hours.
+     *                     Suggest one string for each weekday. Indicate closed with "CLOSED" or ""
+     * @param tagIds Optional. A list of app specific tag ids
+     * @param street Optional. Street name
+     * @param cityArea Optional. City area
+     * @param city Optional. City
+     * @param county Optional. County
+     * @param postalCode Optional. Postal code
+     * @param country Optional. Country
+     * @param latitude Optional. The latitude
+     * @param longitude Optional. The longitude
+     * @param phoneNumber Optional. Phone number
+     * @param email Optional. Email address
+     * @param webUrl Optional. The venue home page if any
+     * @param facebookUrl Optional. The venue Facebook page
+     * @param twitterUrl Optional. The Twitter url
+     * @param logoUrl Optional. A logo url that is suitable to show in list views
+     * @param imageUrls Optional. Image urls that are suitable to show in a details view
      * @return the new venue
      */
     @RestReturn(value= JVenue.class, entity=JVenue.class, code={
@@ -54,15 +70,19 @@ public class VenueController extends AbstractRestController {
     public RedirectView addVenue(HttpServletRequest request,
                                  Principal principal,
                                  @PathVariable String domain,
-                                 @RequestParam(required = false) Long parentId,
-                                 @RequestParam(required = false) String hierarchy,
-                                 @RequestParam(required = true) String name,
-                                 @RequestParam(required = false) String shortDescription,
-                                 @RequestParam(required = false) String description,
-                                 @RequestParam(required = false) Long[] appTags1,
-                                 @RequestParam(required = false) Long[] appTags2) {
+                                 @ModelAttribute("jVenue") JVenue jVenue,
+                                 @ModelAttribute("jLocation") JLocation jLocation,
+                                 BindingResult result) {
 
-        final DPlace body = venueService.addPlace(domain, parentId, hierarchy, name);
+        if (result.hasErrors()) {
+            LOG.debug(String.format("Data binding to venue failed with reason:%s"), result.toString());
+            throw new BadRequestException(400, String.format("Data binding to venue failed with reason:%s", result.toString()));
+        }
+
+        // Set the location outside the binding
+        jVenue.setLocation(jLocation);
+
+        final DPlace body = venueService.addPlace(jVenue);
 
         return new RedirectView(request.getRequestURI() + "/" + body.getId().toString());
     }
@@ -70,9 +90,28 @@ public class VenueController extends AbstractRestController {
     /**
      * Update venue by id.
      * @param id the id of the venue.
+     * @param name the name of the venue
      * @param parentId Optional. The id of the parent venue this venue belong to
      * @param hierarchy Optional. The hierarchy level this venue belong to
-     * @param name the name of the venue
+     * @param shortDescription Optional. A short description of the venue
+     * @param description Optional. A description of the venue
+     * @param openingHours Optional. A list of string describing the opening hours
+     * @param tagIds Optional. A list of app specific tag ids
+     * @param street Optional. Street name
+     * @param cityArea Optional. City area
+     * @param city Optional. City
+     * @param county Optional. County
+     * @param postalCode Optional. Postal code
+     * @param country Optional. Country
+     * @param latitude Optional. The latitude
+     * @param longitude Optional. The longitude
+     * @param phoneNumber Optional. Phone number
+     * @param email Optional. Email address
+     * @param webUrl Optional. The venue home page if any
+     * @param facebookUrl Optional. The venue Facebook page
+     * @param twitterUrl Optional. The Twitter url
+     * @param logoUrl Optional. A logo url that is suitable to show in list views
+     * @param imageUrls Optional. Image urls that are suitable to show in a details view
      * @return the updated venue
      */
     @RestReturn(value=JVenue.class, entity=JVenue.class, code={
@@ -83,15 +122,21 @@ public class VenueController extends AbstractRestController {
                                     Principal principal,
                                     @PathVariable String domain,
                                     @PathVariable Long id,
-                                    @RequestParam(required = false) Long parentId,
-                                    @RequestParam(required = false) String hierarchy,
-                                    @RequestParam(required = false) String name,
-                                    @RequestParam(required = false) String shortDescription,
-                                    @RequestParam(required = false) String description,
-                                    @RequestParam(required = false) Long[] appTags1,
-                                    @RequestParam(required = false) Long[] appTags2) {
+                                    @ModelAttribute("jVenue") JVenue jVenue,
+                                    @ModelAttribute("jLocation") JLocation jLocation,
+                                    BindingResult result) {
 
-        final DPlace body = venueService.updatePlace(domain, id, parentId, hierarchy, name);
+        if (result.hasErrors()) {
+            LOG.debug(String.format("Data binding to venue failed with reason:%s"), result.toString());
+            throw new BadRequestException(400, String.format("Data binding to venue failed with reason:%s", result.toString()));
+        }
+
+        // Add the id to the binding
+        jVenue.setId(Long.toString(id));
+        // Set the location outside the binding
+        jVenue.setLocation(jLocation);
+
+        final DPlace body = venueService.updatePlace(jVenue);
 
         return new RedirectView(request.getRequestURI());
     }
@@ -111,9 +156,9 @@ public class VenueController extends AbstractRestController {
                                            @PathVariable String domain,
                                            @PathVariable Long id) {
 
-        final DPlace body = venueService.getPlace(domain, id);
+        final DPlace body = venueService.getPlace(id);
 
-        return new ResponseEntity<JVenue>(Converter.convert(body, request), HttpStatus.OK);
+        return new ResponseEntity<JVenue>(Converter.convert(body), HttpStatus.OK);
     }
 
     /**
@@ -131,28 +176,9 @@ public class VenueController extends AbstractRestController {
                                               @PathVariable String domain,
                                               @PathVariable Long id) {
 
-        final DPlace body = venueService.deletePlace(domain, id);
+        final DPlace body = venueService.deletePlace(id);
 
         return new ResponseEntity<JVenue>(HttpStatus.OK);
-    }
-
-    /**
-     * Free text search for venues.
-     * @param searchText the search text
-     * @return a list of venues matching the search text
-     */
-    @RestReturn(value=JVenue.class, entity=JVenue.class, code={
-            @RestCode(code=200, message="OK", description="Venues found"),
-    })
-    @RequestMapping(value="", method= RequestMethod.GET, params="searchText")
-    public ResponseEntity<Collection<JVenue>> searchForVenue(HttpServletRequest request,
-                                                             Principal principal,
-                                                             @PathVariable String domain,
-                                                             @RequestParam(required = true) String searchText) {
-
-        final Collection<DPlace> body = venueService.searchForPlace(domain, searchText);
-
-        return new ResponseEntity<Collection<JVenue>>((Collection<JVenue>)Converter.convert(body, request), HttpStatus.OK);
     }
 
     /**
@@ -175,19 +201,16 @@ public class VenueController extends AbstractRestController {
                                                             @RequestParam(required = false) String cursor) {
 
         Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlaces(domain, cursor, pagesize, dPlaces);
+        final String newCursor = venueService.getAllPlaces(cursor, pagesize, dPlaces);
 
-        JVenuePage venuePage = new JVenuePage();
-        venuePage.setCursor(newCursor);
-        venuePage.setPageSize(pagesize);
-        venuePage.setVenues((Collection<JVenue>) Converter.convert(dPlaces, request));
+        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
 
         return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
     }
 
     /**
      * Get all venues for a parent.
-     * @param id the id of the parent venue this venue belong to
+     * @param id the id of the parent venue
      * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
      * @param cursor Optional. The current cursor position during pagination.
      *               The next page will be return from this position.
@@ -207,44 +230,44 @@ public class VenueController extends AbstractRestController {
                                                             @PathVariable Long id) {
 
         Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlacesForParent(domain, id, cursor, pagesize, dPlaces);
+        final String newCursor = venueService.getAllPlacesForParent(id, cursor, pagesize, dPlaces);
 
-        JVenuePage venuePage = new JVenuePage();
-        venuePage.setCursor(newCursor);
-        venuePage.setPageSize(pagesize);
-        venuePage.setVenues((Collection<JVenue>) Converter.convert(dPlaces, request));
+        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
 
         return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
     }
 
+
+
+    // TODO Get root venues
+
+
     /**
-     * Get all venues for a hierarchy.
-     * @param name the name of the hierarchy
+     * Search for venues by text.
      * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
      * @param cursor Optional. The current cursor position during pagination.
      *               The next page will be return from this position.
      *               If asking for the first page, not cursor should be provided.
-     * @return a list of venues and a new cursor.
+     * @param text the search text
+     * @param tagIds Optional. Only venues containing the list of tag ids will be searched
+     * @return a list of venues matching the search text
      */
     @RestReturn(value=JVenuePage.class, entity=JVenuePage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
-            @RestCode(code=404, message="NOK", description="No venues found")
     })
-    @RequestMapping(value="hierarchy/{name}", method= RequestMethod.GET)
-    public ResponseEntity<JVenuePage> getAllVenuesForHierarchy(HttpServletRequest request,
-                                                            Principal principal,
-                                                            @PathVariable String domain,
-                                                            @RequestParam(defaultValue = "10") int pagesize,
-                                                            @RequestParam(required = false) String cursor,
-                                                            @PathVariable String name) {
+    @RequestMapping(value="search", method= RequestMethod.GET, params="text")
+    public ResponseEntity<JVenuePage> searchForVenue(HttpServletRequest request,
+                                                     Principal principal,
+                                                     @PathVariable String domain,
+                                                     @RequestParam(required = true) String text,
+                                                     @RequestParam(required = false) Long[] tagIds,
+                                                     @RequestParam(defaultValue = "10") int pagesize,
+                                                     @RequestParam(required = false) String cursor) {
 
         Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlacesForHierarchy(domain, name, cursor, pagesize, dPlaces);
+        final String newCursor = venueService.textSearchForPlaces(text, tagIds, cursor, pagesize, dPlaces);
 
-        JVenuePage venuePage = new JVenuePage();
-        venuePage.setCursor(newCursor);
-        venuePage.setPageSize(pagesize);
-        venuePage.setVenues((Collection<JVenue>) Converter.convert(dPlaces, request));
+        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
 
         return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
     }
@@ -252,15 +275,11 @@ public class VenueController extends AbstractRestController {
 
     /**
      * Get all venues with matching tag ids.
-     *
-     * Both a category and location tag can be provided and will when act and an AND operation.
-     * Minimum one category or location tag must be provided.
      * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
      * @param cursor Optional. The current cursor position during pagination.
      *               The next page will be return from this position.
      *               If asking for the first page, not cursor should be provided.
-     * @param appTag1 the tag id will be matched against tag group 1
-     * @param appTag2 the tag id will be matched against tag group 2
+     * @param tagIds optional. A list a tag ids. Only places with matching tags will be considered
      * @return a list of venues and a new cursor.
      */
     @RestReturn(value=JVenuePage.class, entity=JVenuePage.class, code={
@@ -273,22 +292,44 @@ public class VenueController extends AbstractRestController {
                                                             @PathVariable String domain,
                                                             @RequestParam(defaultValue = "10") int pagesize,
                                                             @RequestParam(required = false) String cursor,
-                                                            @RequestParam(required = false) Long appTag1,
-                                                            @RequestParam(required = false) Long appTag2) {
+                                                            @RequestParam(required = true) Long[] tagIds) {
 
-        // Check that at least one tag is provided
-        if (null == appTag1 && null == appTag2)
-            return new ResponseEntity<JVenuePage>(HttpStatus.BAD_REQUEST);
 
         Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlacesForTags(domain, appTag1, appTag2, cursor, pagesize, dPlaces);
+        final String newCursor = venueService.getAllPlacesForTags(tagIds, cursor, pagesize, dPlaces);
 
-        JVenuePage venuePage = new JVenuePage();
-        venuePage.setCursor(newCursor);
-        venuePage.setPageSize(pagesize);
-        venuePage.setVenues((Collection<JVenue>) Converter.convert(dPlaces, request));
+        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
 
         return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
+    }
+
+
+    /**
+     * Find nearby venues.
+     *@param latitude optional, the latitude to search around
+     * @param longitude optional, the longitude to search around
+     * @param radius optional, the radius i meter. Default 1500m
+     * @param limit optional, the maximum number of results to return. Default 10
+     * @param tagIds optional. A list a tag ids. Only places with matching tags will be considered
+     * @return a list of products
+     */
+    @RestReturn(value=JVenue.class, entity=JVenue.class, code={
+            @RestCode(code=200, message="OK", description="Venues found"),
+            @RestCode(code=404, message="NOK", description="No venues found")
+    })
+    @RequestMapping(value="nearby", method= RequestMethod.GET)
+    public ResponseEntity<Collection<JVenue>> getAllVenuesForTagIds(HttpServletRequest request,
+                                                            Principal principal,
+                                                            @PathVariable String domain,
+                                                            @RequestParam(required = true) Float latitude,
+                                                            @RequestParam(required = true) Float longitude,
+                                                            @RequestParam(defaultValue = "2500") int radius,
+                                                            @RequestParam(defaultValue = "10") int limit,
+                                                            @RequestParam(required = true) Long[] tagIds) {
+
+        Collection<DPlace> dPlaces = venueService.getNearbyPlaces(latitude, longitude, radius, tagIds, limit);
+
+        return new ResponseEntity<Collection<JVenue>>((Collection<JVenue>)Converter.convert(dPlaces), HttpStatus.OK);
     }
 
 

@@ -2,8 +2,11 @@ package com.wadpam.pocketvenue.domain;
 
 import com.google.appengine.api.datastore.Email;
 import com.google.appengine.api.datastore.GeoPt;
+import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
+import net.sf.mardao.api.Parent;
 import net.sf.mardao.api.domain.AEDLongEntity;
+import net.sf.mardao.core.domain.AbstractLongEntity;
 
 import javax.persistence.Basic;
 import javax.persistence.Entity;
@@ -15,19 +18,11 @@ import java.util.Collection;
  * @author mattiaslevin
  */
 @Entity
-public class DPlace extends AEDLongEntity {
-
-    /** Generated primary key */
-    @Id
-    private Long               id;
+public class DPlace extends AbstractLongEntity {
 
     /** The parent place id */
-    @Basic
-    private Long               parentId;
-
-    /** The hierarchy name */
-    @Basic
-    private String             hierarchy;
+    @Parent(kind = "DPlace")
+    private Key                parentKey;
 
     /** The place name */
     @Basic
@@ -42,18 +37,15 @@ public class DPlace extends AEDLongEntity {
     private String             description;
 
     /** Opening hours */
-    // TODO add opening hours
+    @Basic
+    private Collection<String> openingHours;
 
 
     // Tag groups
 
-    /** App specific tag group 1 */
+    /** Tags assigned to this place */
     @Basic
-    private Collection<Long>   appTags1;
-
-    /** App specific tag group 2 */
-    @Basic
-    private Collection<Long>   appTags2;
+    private Collection<Long>   tags;
 
 
     // Address
@@ -126,40 +118,28 @@ public class DPlace extends AEDLongEntity {
 
     // TODO: What other attributes should exist
 
-    @Override
-    public Long getSimpleKey() {
-        return id;
-    }
 
     @Override
     public String toString() {
-        return String.format("{id:%d, name:%s}", id, name);
+        return String.format("{id:%d, name:%s}", getId(), name);
     }
 
 
     // Setter and getters
-    public Long getId() {
-        return id;
+    public float getLatitude() {
+        return null != location ? location.getLatitude() : -200;
     }
 
-    public void setId(Long id) {
-        this.id = id;
+    public float getLongitude() {
+        return null != location ? location.getLongitude() : -200;
     }
 
-    public Long getParentId() {
-        return parentId;
+    public Key getParentKey() {
+        return parentKey;
     }
 
-    public void setParentId(Long parentId) {
-        this.parentId = parentId;
-    }
-
-    public String getHierarchy() {
-        return hierarchy;
-    }
-
-    public void setHierarchy(String hierarchy) {
-        this.hierarchy = hierarchy;
+    public void setParentKey(Key parentKey) {
+        this.parentKey = parentKey;
     }
 
     public String getName() {
@@ -242,20 +222,12 @@ public class DPlace extends AEDLongEntity {
         this.location = location;
     }
 
-    public Collection<Long> getAppTags1() {
-        return appTags1;
+    public Collection<Long> getTags() {
+        return tags;
     }
 
-    public void setAppTags1(Collection<Long> appTags1) {
-        this.appTags1 = appTags1;
-    }
-
-    public Collection<Long> getAppTags2() {
-        return appTags2;
-    }
-
-    public void setAppTags2(Collection<Long> appTags2) {
-        this.appTags2 = appTags2;
+    public void setTags(Collection<Long> tags) {
+        this.tags = tags;
     }
 
     public String getPhoneNumber() {
@@ -312,5 +284,13 @@ public class DPlace extends AEDLongEntity {
 
     public void setImageUrls(Collection<Link> imageUrls) {
         this.imageUrls = imageUrls;
+    }
+
+    public Collection<String> getOpeningHours() {
+        return openingHours;
+    }
+
+    public void setOpeningHours(Collection<String> openingHours) {
+        this.openingHours = openingHours;
     }
 }

@@ -2,8 +2,10 @@ package com.wadpam.pocketvenue.json;
 
 import com.google.appengine.api.datastore.Category;
 import com.google.appengine.api.datastore.Email;
+import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
+import net.sf.mardao.api.Parent;
 
 import java.util.Collection;
 
@@ -16,10 +18,7 @@ public class JVenue extends JBaseObject {
     // Id is inherited from from parent class
 
     /** The brand id */
-    private String             parentId;
-
-    /** The hierarchy name */
-    private String             hierarchy;
+    private Long               parentId;
 
     /** The venue name */
     private String             name;
@@ -31,16 +30,13 @@ public class JVenue extends JBaseObject {
     private String             description;
 
     /** Opening hours */
-    // TODO add opening hours
+    private Collection<String> openingHours;
 
 
     // Tag groups
 
     /** App specific tag group 1 */
-    private Collection<Long>   appTags1;
-
-    /** App specific tag group 2 */
-    private Collection<Long>   appTags2;
+    private Collection<Long>   tags;
 
 
     // Address
@@ -73,51 +69,42 @@ public class JVenue extends JBaseObject {
     private String              phoneNumber;
 
     /** The venue email number */
-    private Email               email;
+    private String              email;
 
     /** The venue web url */
-    private Link                webUrl;
+    private String              webUrl;
 
 
     // Social
 
     /** The venue facebook url */
-    private Link                facebookUrl;
+    private String              facebookUrl;
 
     /** The venue twitter url */
-    private Link                twitterUrl;
+    private String              twitterUrl;
 
 
     // Images
 
     /** The venue logo url */
-    private Link                logoUrl;
+    private String               logoUrl;
 
     /** A list of venue related image urls */
-    private Collection<Link>    imageUrls;
+    private Collection<String>   imageUrls;
 
 
 
     @Override
     protected String subString() {
-        return String.format("name:%s parent:%s hierarchy:%s", name, parentId, hierarchy);
+        return String.format("name:%s parent:%s", name, parentId);
     }
 
-    // Setters and getters
-    public String getParentId() {
+    public Long getParentId() {
         return parentId;
     }
 
-    public void setParentId(String parentId) {
+    public void setParentId(Long parentId) {
         this.parentId = parentId;
-    }
-
-    public String getHierarchy() {
-        return hierarchy;
-    }
-
-    public void setHierarchy(String hierarchy) {
-        this.hierarchy = hierarchy;
     }
 
     public String getName() {
@@ -196,24 +183,12 @@ public class JVenue extends JBaseObject {
         return location;
     }
 
-    public void setLocation(JLocation location) {
-        this.location = location;
+    public Collection<Long> getTags() {
+        return tags;
     }
 
-    public Collection<Long> getAppTags1() {
-        return appTags1;
-    }
-
-    public void setAppTags1(Collection<Long> appTags1) {
-        this.appTags1 = appTags1;
-    }
-
-    public Collection<Long> getAppTags2() {
-        return appTags2;
-    }
-
-    public void setAppTags2(Collection<Long> appTags2) {
-        this.appTags2 = appTags2;
+    public void setTags(Collection<Long> tags) {
+        this.tags = tags;
     }
 
     public String getPhoneNumber() {
@@ -224,51 +199,59 @@ public class JVenue extends JBaseObject {
         this.phoneNumber = phoneNumber;
     }
 
-    public Email getEmail() {
+    public String getEmail() {
         return email;
     }
 
-    public void setEmail(Email email) {
+    public void setEmail(String email) {
         this.email = email;
     }
 
-    public Link getWebUrl() {
-        return webUrl;
-    }
-
-    public void setWebUrl(Link webUrl) {
-        this.webUrl = webUrl;
-    }
-
-    public Link getFacebookUrl() {
+    public String getFacebookUrl() {
         return facebookUrl;
     }
 
-    public void setFacebookUrl(Link facebookUrl) {
+    public void setFacebookUrl(String facebookUrl) {
         this.facebookUrl = facebookUrl;
     }
 
-    public Link getTwitterUrl() {
-        return twitterUrl;
-    }
-
-    public void setTwitterUrl(Link twitterUrl) {
-        this.twitterUrl = twitterUrl;
-    }
-
-    public Link getLogoUrl() {
-        return logoUrl;
-    }
-
-    public void setLogoUrl(Link logoUrl) {
-        this.logoUrl = logoUrl;
-    }
-
-    public Collection<Link> getImageUrls() {
+    public Collection<String> getImageUrls() {
         return imageUrls;
     }
 
-    public void setImageUrls(Collection<Link> imageUrls) {
+    public void setImageUrls(Collection<String> imageUrls) {
         this.imageUrls = imageUrls;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
+    }
+
+    public String getTwitterUrl() {
+        return twitterUrl;
+    }
+
+    public void setTwitterUrl(String twitterUrl) {
+        this.twitterUrl = twitterUrl;
+    }
+
+    public String getWebUrl() {
+        return webUrl;
+    }
+
+    public void setWebUrl(String webUrl) {
+        this.webUrl = webUrl;
+    }
+
+    public Collection<String> getOpeningHours() {
+        return openingHours;
+    }
+
+    public void setOpeningHours(Collection<String> openingHours) {
+        this.openingHours = openingHours;
     }
 }

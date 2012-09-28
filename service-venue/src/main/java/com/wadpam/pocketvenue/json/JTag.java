@@ -17,7 +17,7 @@ public class JTag extends JBaseObject {
     private String             type;
 
     /** The parent tag id */
-    private String             parentId;
+    private Long               parentId;
 
     /** The tag name */
     private String             name;
@@ -40,11 +40,11 @@ public class JTag extends JBaseObject {
         this.name = name;
     }
 
-    public String getParentId() {
+    public Long getParentId() {
         return parentId;
     }
 
-    public void setParentId(String parentId) {
+    public void setParentId(Long parentId) {
         this.parentId = parentId;
     }
 

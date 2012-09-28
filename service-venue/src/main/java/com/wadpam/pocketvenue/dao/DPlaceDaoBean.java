@@ -7,11 +7,14 @@ import com.google.appengine.api.datastore.Cursor;
 import com.google.appengine.api.search.*;
 import com.google.appengine.api.search.Index;
 import com.wadpam.pocketvenue.domain.DPlace;
+import net.sf.mardao.core.CursorPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Implementation of Business Methods related to entity DPlace.
@@ -23,80 +26,199 @@ import java.util.Collection;
  */
 public class DPlaceDaoBean 
 	extends GeneratedDPlaceDaoImpl
-		implements DPlaceDao 
+		implements DPlaceDao
 {
+
     static final Logger LOG = LoggerFactory.getLogger(DPlaceDao.class);
 
-    static final String INDEX_NAME = "placeIndex";
+    static final String SEARCH_INDEX = "searchIndex";
+    static final String LOCATION_INDEX = "locationIndex";
+
+    // Default constructor to enable caching by Mardao
+    public DPlaceDaoBean() {
+        this.memCacheEntities = true;
+        this.memCacheAll = false;
+    }
 
 
     // Persist a place and update the index
     @Override
-    public Long persistAndIndex(DPlace dPlace) {
+    public Long persist(DPlace dPlace) {
 
         // Persist
-        Long placeId = this.persist(dPlace);
+        Long placeId = super.persist(dPlace);
 
-        // Index the place
-        Document document = Document.newBuilder()
-                .setId(Long.toString(dPlace.getId()))
-                .addField(Field.newBuilder().setName("name").setText(dPlace.getName()))  // TODO: Add more fields to index
-                .build();
+        // Update the index
+        updateIndex(dPlace);
+
+        return placeId;
+    }
+
+    // Update the index
+    private void updateIndex(DPlace dPlace) {
 
         try {
-            // Add the document.
-            getIndex().add(document);
+            // Index the text search
+            Document.Builder searchBuilder = Document.newBuilder()
+                    .setId(Long.toString(dPlace.getId()));
+
+            // Name
+            if (null != dPlace.getName() && dPlace.getName().isEmpty() == false)
+                searchBuilder.addField(Field.newBuilder().setName("name").setText(dPlace.getName()));
+
+            // City
+            if (null != dPlace.getCity() && dPlace.getCity().isEmpty() == false)
+                searchBuilder.addField(Field.newBuilder().setName("city").setText(dPlace.getCity()));
+
+            // Tag ids
+            if (null != dPlace.getTags() && dPlace.getTags().size() > 0) {
+                String tagsString = buildTagsString(dPlace.getTags());
+                searchBuilder.addField(Field.newBuilder().setName("tags").setText(tagsString));
+            }
+
+            getSearchIndex().add(searchBuilder.build());
+
+            // Index the geo location
+            if (null != dPlace.getLocation()) {
+                GeoPoint geoPoint = new GeoPoint(dPlace.getLocation().getLatitude(), dPlace.getLocation().getLongitude());
+                Document.Builder locationBuilder = Document.newBuilder()
+                        .setId(Long.toString(dPlace.getId()))
+                        .addField(Field.newBuilder().setName("location").setGeoPoint(geoPoint));
+                getLocationIndex().add(locationBuilder.build());
+            } else {
+                // Remove from index
+                getLocationIndex().remove(Long.toString(dPlace.getId()));
+            }
+
         } catch (AddException e) {
             if (StatusCode.TRANSIENT_ERROR.equals(e.getOperationResult().getCode())) {
                 LOG.error("Not possible to add document to index");
                 // TODO: Error handling missing
             }
         }
-
-        return placeId;
     }
 
-    // Build index
-    private Index getIndex() {
+    // Concatenate all tag ids into a string with " " (blank) in between
+    private String buildTagsString (Collection<Long> tags) {
+        StringBuilder result = new StringBuilder();
+        for(Long tag : tags) {
+            result.append(Long.toString(tag));
+            result.append(" ");
+        }
+        return result.length() > 0 ? result.substring(0, result.length() - 1) : "";
+    }
+
+    // Build search index
+    private Index getSearchIndex() {
         IndexSpec indexSpec = IndexSpec.newBuilder()
-                .setName(INDEX_NAME)
+                .setName(SEARCH_INDEX)
+                .setConsistency(Consistency.PER_DOCUMENT)
+                .build();
+        return SearchServiceFactory.getSearchService().getIndex(indexSpec);
+    }
+
+    // Build location index
+    private Index getLocationIndex() {
+        IndexSpec indexSpec = IndexSpec.newBuilder()
+                .setName(LOCATION_INDEX)
                 .setConsistency(Consistency.PER_DOCUMENT)
                 .build();
         return SearchServiceFactory.getSearchService().getIndex(indexSpec);
     }
 
     // Delete and update index
-    public void deleteAndUpdateIndex(DPlace dPlace) {
+    public boolean delete(DPlace dPlace) {
 
         // Delete from data store
-        delete(dPlace);
+        boolean result =  super.delete(dPlace);
 
         // Remove from index
-        getIndex().remove(Long.toString(dPlace.getId()));
+        getSearchIndex().remove(Long.toString(dPlace.getId()));
+        getLocationIndex().remove(Long.toString(dPlace.getId()));
+
+        return result;
     }
 
 
     // Search in the index for matching places
     @Override
-    public Collection<DPlace> searchInIndexForPlaces(String text) {
-        // TODO: support cursor
+    public String searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds, Collection<DPlace> result) {
 
         // Build the query string
-        String queryString = text;
+        String queryString = null;
+        if (null == tagIds || tagIds.size() < 1)
+            queryString = text;
+        else {
+            StringBuilder query = new StringBuilder();
+
+            Iterator<Long> iterator = tagIds.iterator();
+            while (iterator.hasNext()) {
+                query.append("tags:").append(iterator.next()).append(" AND ");
+            }
+
+            if (null != text && text.isEmpty() == false)
+                query.append(" AND ").append(text);
+
+            queryString = query.toString();
+
+        }
 
         // Options
-        QueryOptions options = QueryOptions.newBuilder()
-                .setLimit(25)
+        QueryOptions options = null;
+        QueryOptions.Builder builder = QueryOptions.newBuilder()
+                .setLimit(pageSize);
+
+        if (null != cursor)
+            builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build(cursor));
+
+        // Build query
+        com.google.appengine.api.search.Query query = com.google.appengine.api.search.Query.newBuilder()
+                    .setOptions(options)
+                    .build(queryString);
+
+        return searchInIndexWithQuery(query, getSearchIndex(), result);
+    }
+
+    // Search for nearby places
+    @Override
+    public String searchInIndexForNearby(String cursor, int pageSize, Float latitude,
+                                         Float longitude, int radius, List<Long> tagIds, Collection<DPlace> result) {
+
+        // Build the query string
+        String queryString = String.format("distance(location, geopoint(%f, %f)) < %d", latitude, longitude, radius);
+
+        // Sort expression
+        String sortString = String.format("distance(location, geopoint(%f, %f))", latitude, longitude);
+
+        SortExpression sortExpression = SortExpression.newBuilder()
+                .setExpression(sortString)
+                .setDirection(SortExpression.SortDirection.ASCENDING)
+                .setDefaultValueNumeric(radius + 1)
                 .build();
+
+        // Options
+        QueryOptions options = null;
+        QueryOptions.Builder builder = QueryOptions.newBuilder()
+                .setSortOptions(SortOptions.newBuilder().addSortExpression(sortExpression))
+                .setLimit(pageSize);
+
+        if (null != cursor)
+            builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build(cursor));
 
         // Build query
         com.google.appengine.api.search.Query query = com.google.appengine.api.search.Query.newBuilder()
                 .setOptions(options)
                 .build(queryString);
 
+        return searchInIndexWithQuery(query, getLocationIndex(), result);
+    }
+
+    // Search in index for a query
+    private CursorPage<DPlace, Long> searchInIndexWithQuery(com.google.appengine.api.search.Query query, Index index) {
+
         try {
             // Query the index.
-            Results<ScoredDocument> results = getIndex().search(query);
+            Results<ScoredDocument> results = index.search(query);
 
             Collection<Long> ids = new ArrayList<Long>();
             for (ScoredDocument document : results) {
@@ -104,13 +226,25 @@ public class DPlaceDaoBean
                 ids.add(Long.parseLong(document.getId()));
             }
 
-            if (ids.size() != 0)
+            if (ids.size() != 0) {
                 // We got results, get the places from datastore
-                return this.findByPrimaryKeys(ids).values();
-            else
-                // No results, return empty list
-                return new ArrayList<DPlace>(0);
+                Iterable<DPlace> dPlaceIterable = queryByPrimaryKeys(null, ids);
 
+                CursorPage<DPlace, Long> cursorPage = new CursorPage<DPlace, Long>();
+                cursorPage.setCursorKey(results.getCursor().toWebSafeString());
+
+                Collection<DPlace> dPlaces = new ArrayList<DPlace>(ids.size());
+                cursorPage.setItems(dPlaces);
+
+                Iterator<DPlace> iterator = dPlaceIterable.iterator();
+                while (iterator.hasNext())
+                    dPlaces.add(iterator.next());
+
+                return cursorPage;
+            } else {
+                // No results
+                return null;
+            }
         } catch (SearchException e) {
             if (StatusCode.TRANSIENT_ERROR.equals(e.getOperationResult().getCode())) {
                 LOG.error("Search index failed");
@@ -122,7 +256,7 @@ public class DPlaceDaoBean
 
     // Get all places
     @Override
-    public String getPlaces(String cursor, int pageSize, Collection<DPlace> result) {
+    public String getAllPlaces(String cursor, int pageSize, Collection<DPlace> result) {
         LOG.debug(String.format("Get all place"));
 
         // Build a query, no filter
@@ -143,37 +277,6 @@ public class DPlaceDaoBean
         return getPlacesWithQuery(cursor, query, pageSize, result);
     }
 
-    // Get all places for a hierarchy
-    @Override
-    public String getPlacesForHierarchy(String cursor, int pageSize, String hierarchy, Collection<DPlace> result) {
-        LOG.debug(String.format("Get all place for hierarchy:%s", hierarchy));
-
-        // Build a query
-        Query query = new Query("DPlace");
-        query.setFilter(new Query.FilterPredicate("hierarchy", Query.FilterOperator.EQUAL, hierarchy));
-
-        return getPlacesWithQuery(cursor, query, pageSize, result);
-    }
-
-    // Get all places for tags
-    public String getPlacesForTags(String cursor, int pageSize, Long appTag1, Long appTag2, Collection<DPlace> result) {
-        LOG.debug(String.format("Get all place for category tag id:%s and location tag id", appTag1, appTag2));
-
-        // Build a query
-        Query query = new Query("DPlace");
-        if (null != appTag1 && null != appTag2)
-            query.setFilter(Query.CompositeFilterOperator.and(
-                    new Query.FilterPredicate("appTag1", Query.FilterOperator.EQUAL, appTag1),
-                    new Query.FilterPredicate("appTag2", Query.FilterOperator.EQUAL, appTag2)));
-        else if (null != appTag1)
-            query.setFilter(new Query.FilterPredicate("appTag1", Query.FilterOperator.EQUAL, appTag1));
-        else if (null != appTag2)
-            query.setFilter(new Query.FilterPredicate("appTag2", Query.FilterOperator.EQUAL, appTag2));
-
-        return getPlacesWithQuery(cursor, query, pageSize, result);
-    }
-
-
     // Get places with query
     private String getPlacesWithQuery(String cursor, Query query, int pageSize ,Collection<DPlace> result) {
         LOG.debug(String.format("Get places with with cursor:%s page size:%d", cursor, pageSize));
@@ -192,13 +295,7 @@ public class DPlaceDaoBean
 
         // Build the DProduct domain object from the entities
         for (Entity entity : entities) {
-            DPlace dPlace = new DPlace();
-
-            LOG.debug(String.format("Entity key id: " + entity.getKey().getId()));
-            dPlace.setId(entity.getKey().getId());
-            dPlace.setParentId((Long)entity.getProperty("parentId"));
-            dPlace.setHierarchy((String)entity.getProperty("hierarchy"));
-            dPlace.setName((String)entity.getProperty("name"));
+            DPlace dPlace = createDomain(entity);
             result.add(dPlace);
         }
 
@@ -212,35 +309,27 @@ public class DPlaceDaoBean
     public void deleteTagId(Long tagId) {
         LOG.debug(String.format("Delete tag id:%s from all places", tagId));
 
-        DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
+        // Find all places with tag
+        QueryResultIterable<DPlace> resultIterable = queryBy(null, false, null, createEqualsFilter(COLUMN_NAME_TAGS, tagId));
 
-        // Build a query
-        Query query = new Query("DPlace");
-        query.setFilter(Query.CompositeFilterOperator.or(
-                new Query.FilterPredicate("appTags1", Query.FilterOperator.EQUAL, tagId),
-                new Query.FilterPredicate("appTags2", Query.FilterOperator.EQUAL, tagId)));
+        Collection<DPlace> updatedTags = new ArrayList<DPlace>();
+        QueryResultIterator iterator = resultIterable.iterator();
+        while (iterator.hasNext()) {
+            DPlace dPlace = (DPlace)iterator.next();
 
-        PreparedQuery preparedQuery = datastore.prepare(query);
-
-        // Iterates over the results and remove the tag
-        Collection<Entity> updatedTags = new ArrayList<Entity>();
-        for (Entity result : preparedQuery.asIterable()) {
-
-            // Remove tag from tag group 1
-            Collection<Long> existingTagIds = (Collection<Long>)result.getProperty("appTag1");
-            if (null != existingTagIds)
+            Collection<Long> existingTagIds = dPlace.getTags();
+            if (null != existingTagIds) {
                 existingTagIds.remove(tagId);
-
-            // Remove tag from tag group 2
-            existingTagIds = (Collection<Long>)result.getProperty("appTag2");
-            if (null != existingTagIds)
-                existingTagIds.remove(tagId);
-
-            // Update entity
-            updatedTags.add(result);
+                updatedTags.add(dPlace);
+            }
         }
-        // Update data store
-        datastore.put(updatedTags);
+
+        // Save to datastore
+        update(updatedTags);
+
+        // Update the index
+        for (DPlace dPlace : updatedTags)
+            updateIndex(dPlace);
     }
 
 }

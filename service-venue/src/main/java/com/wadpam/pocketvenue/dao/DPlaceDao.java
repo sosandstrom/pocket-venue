@@ -4,6 +4,7 @@ import com.google.appengine.api.datastore.Key;
 import com.wadpam.pocketvenue.domain.DPlace;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Business Methods interface for entity DPlace.
@@ -13,27 +14,19 @@ import java.util.Collection;
  * Generated on 2012-09-02T11:34:32.312+0700.
  * @author mardao DAO generator (net.sf.mardao.plugin.ProcessDomainMojo)
  */
-public interface DPlaceDao extends GeneratedDPlaceDao<Key, Key> {
+public interface DPlaceDao extends GeneratedDPlaceDao {
 
-    /**
-     * Persist a place and also update the index to allow future searched.
-     * @param dPlace The place that should be persisted
-     * @return The unique id of the place
-     */
-    public Long persistAndIndex(DPlace dPlace);
-
-    /**
-     * Delete a place and also update the index.
-     * @param dPlace The place that should be deleted
-     */
-    public void deleteAndUpdateIndex(DPlace dPlace);
 
     /**
      * Search for a place based on a text string.
+     * @param cursor The cursor returned from the previous call to this method. If this is the first call, use null.
+     * @param pageSize The number of places to return
      * @param text the search text
-     * @return a list of matching places
+     * @param tagIds an optional list of tag id
+     * @param result An empty collection of places that will be populated with the results
+     * @return a new cursor that can be used to get the next batch of results
      */
-    public Collection<DPlace> searchInIndexForPlaces(String text);
+    public String searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds, Collection<DPlace> result);
 
     /**
      * Get all places.
@@ -42,7 +35,7 @@ public interface DPlaceDao extends GeneratedDPlaceDao<Key, Key> {
      * @param result An empty collection of places that will be populated with the results
      * @return a new cursor that can be used to get the next products.
      */
-    public String getPlaces(String cursor, int pageSize, Collection<DPlace> result);
+    public String getAllPlaces(String cursor, int pageSize, Collection<DPlace> result);
 
     /**
      * Get all places for a parent.
@@ -55,32 +48,23 @@ public interface DPlaceDao extends GeneratedDPlaceDao<Key, Key> {
     public String getPlacesForParent(String cursor, int pageSize, Long parentId, Collection<DPlace> result);
 
     /**
-     * Get all places for a hierarchy.
-     * @param cursor The cursor returned from the previous call to this method. If this is the first call, use null.
-     * @param pageSize The number of places to return
-     * @param hierarchy the hierarchy to iterate over
-     * @param result An empty collection of places that will be populated with the results
-     * @return a new cursor that can be used to get the next products.
-     */
-    public String getPlacesForHierarchy(String cursor, int pageSize, String hierarchy, Collection<DPlace> result);
-
-    /**
-     * Get all places for tags.
-     * Minimum a category or location tag must be provided
-     * @param cursor The cursor returned from the previous call to this method. If this is the first call, use null.
-     * @param pageSize The number of places to return
-     * @param appTag1 the category tag id to match against
-     * @param appTag2 the category tag id to match against
-     * @param result An empty collection of places that will be populated with the results
-     * @return a new cursor that can be used to get the next products.
-     */
-    public String getPlacesForTags(String cursor, int pageSize, Long appTag1, Long appTag2, Collection<DPlace> result);
-
-
-    /**
      * Delete the tag id from all venues
      * @param tagId the tag id to delete
      */
     public void deleteTagId(Long tagId);
+
+    /**
+     * Get places nearby
+     * @param cursor the cursor returned from the previous call to this method. If this is the first call, use null.
+     * @param pageSize the number of places to return
+     * @param latitude the latitude to search around
+     * @param longitude the longitude to search around
+     * @param radius the radius to search within
+     * @param tagIds A list of tags ids to match against
+     * @param result An empty collection of places that will be populated with the results
+     * @return a new cursor that can be used to get the next products.
+     */
+    public String searchInIndexForNearby(String cursor, int pageSize, Float latitude,
+                                         Float longitude, int radius, List<Long> tagIds, Collection<DPlace> result);
 
 }
