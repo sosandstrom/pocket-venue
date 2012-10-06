@@ -20,8 +20,8 @@
         <spring.security.version>3.1.0.RELEASE</spring.security.version>
         <spring-social.version>1.0.1.RELEASE</spring-social.version>
         <mardao.version>2.0.1</mardao.version>
-        <openserver.version>1-SNAPSHOT</openserver.version>
-        <docrest.version>1.13</docrest.version>
+        <openserver.version>1</openserver.version>
+        <docrest.version>1.15</docrest.version>
         <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
     </properties>
 
@@ -134,7 +134,7 @@
                     <doclet>com.wadpam.docrest.DocRestDoclet</doclet>
                     <docletArtifact>
                         <groupId>com.wadpam</groupId>
-                        <artifactId>docrest</artifactId>
+                        <artifactId>docrest-doclet</artifactId>
                         <version>${docrest.version}</version>
                     </docletArtifact>
                     <encoding>UTF-8</encoding>
@@ -154,24 +154,22 @@
             <artifactId>mardao-gae</artifactId>
             <version>${mardao.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.geronimo.specs</groupId>
-            <artifactId>geronimo-jpa_3.0_spec</artifactId>
-            <version>1.1.1</version>
-        </dependency>
 
         <dependency>
             <groupId>com.wadpam.openserver</groupId>
             <artifactId>domain</artifactId>
             <version>${openserver.version}</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.wadpam.openserver</groupId>
+            <artifactId>errors</artifactId>
+            <version>${openserver.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.wadpam.openserver</groupId>
             <artifactId>jsonp</artifactId>
             <version>${openserver.version}</version>
         </dependency>
-
         <dependency>
             <groupId>com.wadpam.openserver</groupId>
             <artifactId>transactions-gae</artifactId>
@@ -187,6 +185,13 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-tx</artifactId>
             <version>${spring.version}</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <version>1.6.12</version>
+            <scope>runtime</scope>
         </dependency>
         
         <dependency>
@@ -223,9 +228,8 @@
         <!-- for javadoc -->
         <dependency>
             <groupId>com.wadpam</groupId>
-            <artifactId>docrest</artifactId>
+            <artifactId>docrest-api</artifactId>
             <version>${docrest.version}</version>
-            <scope>provided</scope>
         </dependency>
 
         <dependency>

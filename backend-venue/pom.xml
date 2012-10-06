@@ -18,7 +18,7 @@
         <spring.version>3.1.1.RELEASE</spring.version>
         <spring.security.version>3.1.0.RELEASE</spring.security.version>
         <org.springframework.social.version>1.0.1.RELEASE</org.springframework.social.version>
-        <openserver.version>1-SNAPSHOT</openserver.version>
+        <openserver.version>1</openserver.version>
         <downloadSources>true</downloadSources>
         <netbeans.hint.deploy.server>Tomcat</netbeans.hint.deploy.server>
         <java.version>1.6</java.version>
@@ -26,7 +26,7 @@
         <itest.include>**/*ITest.java</itest.include>
         <surefire.default.skip>true</surefire.default.skip>
         <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
-        <docrest.version>1.13</docrest.version>
+        <docrest.version>1.15</docrest.version>
         <logging.level>ALL</logging.level>
     </properties>
 
@@ -101,9 +101,8 @@
         <!-- for javadoc -->
         <dependency>
             <groupId>com.wadpam</groupId>
-            <artifactId>docrest</artifactId>
+            <artifactId>docrest-api</artifactId>
             <version>${docrest.version}</version>
-            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -272,7 +271,7 @@
                     <doclet>com.wadpam.docrest.DocRestDoclet</doclet>
                     <docletArtifact>
                         <groupId>com.wadpam</groupId>
-                        <artifactId>docrest</artifactId>
+                        <artifactId>docrest-doclet</artifactId>
                         <version>${docrest.version}</version>
                     </docletArtifact>
                     <encoding>UTF-8</encoding>
@@ -357,6 +356,5 @@
             </properties>
         </profile>
     </profiles>
-
 
 </project>
