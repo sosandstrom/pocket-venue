@@ -11,11 +11,11 @@
 <!-- Bean managed transactions -->
 
     <bean id="dPlaceDao"
-          class="com.wadpam.pocketvenue.dao.DPlaceDaoBean" init-method="init">
+          class="com.wadpam.pocketvenue.dao.DPlaceDaoBean">
     </bean>
 
     <bean id="dTagDao"
-          class="com.wadpam.pocketvenue.dao.DTagDaoBean" init-method="init">
+          class="com.wadpam.pocketvenue.dao.DTagDaoBean">
     </bean>
 
 </beans>

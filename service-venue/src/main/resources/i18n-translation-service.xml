@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-2.5.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-2.5.xsd
+	">
+
+    <!-- i18n translation service -->
+
+    <!--           Service             -->
+    <bean id="translationService" class="com.wadpam.pocketvenue.service.TranslationService">
+        <property name="i18nDao" ref="di18nTranslationDao" />
+    </bean>
+
+    <!--           Controllers             -->
+    <bean id="i18nController" class="com.wadpam.pocketvenue.web.I18nController">
+        <property name="translationService" ref="translationService" />
+        <property name="keyFactoryMap">
+            <map>
+                <entry key="tags" value-ref="tagParentKeyFactory" />
+            </map>
+        </property>
+    </bean>
+
+    <bean id="tagParentKeyFactory" class="com.wadpam.pocketvenue.web.TagParentKeyFactory" />
+
+    <!--           DAO             -->
+    <bean id="di18nTranslationDao"
+          class="com.wadpam.pocketvenue.dao.Di18nTranslationDaoBean">
+    </bean>
+
+</beans>

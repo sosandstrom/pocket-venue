@@ -5,6 +5,7 @@ import com.google.appengine.api.datastore.Email;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
+import com.wadpam.open.json.JLocation;
 import net.sf.mardao.api.Parent;
 
 import java.util.Collection;
@@ -60,7 +61,7 @@ public class JVenue extends JBaseObject {
     private String             country;
 
     /** The venue position in latitude and longitude */
-    private JLocation           location;
+    private JLocation location;
 
 
     // Contact details
@@ -181,6 +182,10 @@ public class JVenue extends JBaseObject {
 
     public JLocation getLocation() {
         return location;
+    }
+
+    public void setLocation(JLocation location) {
+        this.location = location;
     }
 
     public Collection<Long> getTags() {

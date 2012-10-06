@@ -1,13 +1,12 @@
 package com.wadpam.pocketvenue.domain;
 
 import com.google.appengine.api.datastore.Key;
+import com.google.appengine.api.datastore.Link;
 import net.sf.mardao.api.Parent;
-import net.sf.mardao.api.domain.AEDLongEntity;
 import net.sf.mardao.core.domain.AbstractLongEntity;
 
 import javax.persistence.Basic;
 import javax.persistence.Entity;
-import javax.persistence.Id;
 
 /**
  * Represent and hierarchical tag
@@ -27,6 +26,10 @@ public class DTag extends AbstractLongEntity {
     /** The tag name */
     @Basic
     private String             name;
+
+    /** An optional image url */
+    @Basic
+    private Link               imageUrl;
 
 
     @Override
@@ -58,5 +61,13 @@ public class DTag extends AbstractLongEntity {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public Link getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(Link imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

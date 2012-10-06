@@ -13,8 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
 /**
- *
- * @author os
+ * Test the monitor controller.
+ * @author sosandstrom
  */
 public class MonitorITest {
 

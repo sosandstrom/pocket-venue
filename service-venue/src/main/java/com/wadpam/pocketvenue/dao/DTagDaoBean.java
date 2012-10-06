@@ -25,4 +25,19 @@ public class DTagDaoBean
         this.memCacheAll = false;
     }
 
+    // Create datastore key
+    @Override
+    public Key createKey(Long id) {
+        return super.createCoreKey(null, id);
+    }
+
+
+    // Delete from an iterable
+    @Override
+    public int deleteIterable(Iterable<DTag> dTagIterable) {
+        return super.delete(dTagIterable);
+    }
+
+
+
 }

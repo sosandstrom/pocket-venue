@@ -2,13 +2,16 @@ package com.wadpam.pocketvenue.web;
 
 import com.wadpam.docrest.domain.RestCode;
 import com.wadpam.docrest.domain.RestReturn;
+import com.wadpam.open.json.JCursorPage;
+import com.wadpam.open.json.JLocation;
 import com.wadpam.pocketvenue.domain.DPlace;
-import com.wadpam.pocketvenue.json.JLocation;
 import com.wadpam.pocketvenue.json.JVenue;
-import com.wadpam.pocketvenue.json.JVenuePage;
 import com.wadpam.pocketvenue.service.VenueService;
 import com.wadpam.server.exceptions.BadRequestException;
+import com.wadpam.server.exceptions.NotFoundException;
+import com.wadpam.server.exceptions.ServerErrorException;
 import com.wadpam.server.web.AbstractRestController;
+import net.sf.mardao.core.CursorPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -20,7 +23,6 @@ import org.springframework.web.servlet.view.RedirectView;
 
 import javax.servlet.http.HttpServletRequest;
 import java.security.Principal;
-import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -30,9 +32,13 @@ import java.util.Collection;
 @Controller
 @RequestMapping(value="{domain}/venue")
 public class VenueController extends AbstractRestController {
-    // TODO: Exception handlers not working
+    static final int ERROR_CODE_NOT_FOUND = 10000;
+    static final int ERROR_CODE_BAD_REQUEST = 10100;
+    static final int ERROR_CODE_SEVER_ERROR = 10200;
 
     static final Logger LOG = LoggerFactory.getLogger(VenueController.class);
+
+    static final Converter CONVERTER = new Converter();
 
     private VenueService venueService;
 
@@ -68,21 +74,28 @@ public class VenueController extends AbstractRestController {
     })
     @RequestMapping(value="", method= RequestMethod.POST)
     public RedirectView addVenue(HttpServletRequest request,
-                                 Principal principal,
-                                 @PathVariable String domain,
                                  @ModelAttribute("jVenue") JVenue jVenue,
                                  @ModelAttribute("jLocation") JLocation jLocation,
                                  BindingResult result) {
 
+        // Check for binding errors
         if (result.hasErrors()) {
             LOG.debug(String.format("Data binding to venue failed with reason:%s"), result.toString());
-            throw new BadRequestException(400, String.format("Data binding to venue failed with reason:%s", result.toString()));
+            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 1, String.format("Data binding to venue failed with reason:%s", result.toString()), null, "Bad request");
         }
 
         // Set the location outside the binding
         jVenue.setLocation(jLocation);
 
+        // Check that we have a minimum set of parameters
+        if (null == jVenue.getName() || jVenue.getName().isEmpty())
+            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 2, "Client must provide a venue name", null, "Bad request, missing venue name");
+
+        // Create the venue
         final DPlace body = venueService.addPlace(jVenue);
+
+        if (null == body)
+            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 1, String.format("Failed to create new venue:%s", jVenue.getName()), null, "Create new venue failed");
 
         return new RedirectView(request.getRequestURI() + "/" + body.getId().toString());
     }
@@ -119,8 +132,6 @@ public class VenueController extends AbstractRestController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.POST)
     public RedirectView updateVenue(HttpServletRequest request,
-                                    Principal principal,
-                                    @PathVariable String domain,
                                     @PathVariable Long id,
                                     @ModelAttribute("jVenue") JVenue jVenue,
                                     @ModelAttribute("jLocation") JLocation jLocation,
@@ -128,8 +139,12 @@ public class VenueController extends AbstractRestController {
 
         if (result.hasErrors()) {
             LOG.debug(String.format("Data binding to venue failed with reason:%s"), result.toString());
-            throw new BadRequestException(400, String.format("Data binding to venue failed with reason:%s", result.toString()));
+            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 3, String.format("Data binding to venue failed with reason:%s", result.toString()), null, "Bad request");
         }
+
+        // Check that we have a minimum set of parameters
+        if (null != jVenue.getName() || jVenue.getName().isEmpty())
+            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 4, "Client must provide a venue name", null, "Bad request, missing venue name");
 
         // Add the id to the binding
         jVenue.setId(Long.toString(id));
@@ -137,6 +152,9 @@ public class VenueController extends AbstractRestController {
         jVenue.setLocation(jLocation);
 
         final DPlace body = venueService.updatePlace(jVenue);
+
+        if (null == body)
+            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 1, String.format("Place with id:%s not found during update", body.getId()), null, "Updating venue failed");
 
         return new RedirectView(request.getRequestURI());
     }
@@ -158,7 +176,10 @@ public class VenueController extends AbstractRestController {
 
         final DPlace body = venueService.getPlace(id);
 
-        return new ResponseEntity<JVenue>(Converter.convert(body), HttpStatus.OK);
+        if (null == body)
+            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 2, String.format("Place with id:%s not found", id), null, "Venue not found");
+
+        return new ResponseEntity<JVenue>(CONVERTER.convert(body), HttpStatus.OK);
     }
 
     /**
@@ -176,7 +197,7 @@ public class VenueController extends AbstractRestController {
                                               @PathVariable String domain,
                                               @PathVariable Long id) {
 
-        final DPlace body = venueService.deletePlace(id);
+        final DPlace result = venueService.deletePlace(id);
 
         return new ResponseEntity<JVenue>(HttpStatus.OK);
     }
@@ -189,23 +210,25 @@ public class VenueController extends AbstractRestController {
      *               If asking for the first page, not cursor should be provided.
      * @return a list of venues and a new cursor.
      */
-    @RestReturn(value=JVenuePage.class, entity=JVenuePage.class, code={
+    @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
             @RestCode(code=404, message="NOK", description="No venues found")
     })
     @RequestMapping(value="", method= RequestMethod.GET)
-    public ResponseEntity<JVenuePage> getAllVenuesForParent(HttpServletRequest request,
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForParent(HttpServletRequest request,
                                                             Principal principal,
                                                             @PathVariable String domain,
                                                             @RequestParam(defaultValue = "10") int pagesize,
                                                             @RequestParam(required = false) String cursor) {
 
-        Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlaces(cursor, pagesize, dPlaces);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlaces(cursor, pagesize);
 
-        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
+        JCursorPage venuePage = new JCursorPage();
+        venuePage.setCursor(cursorPage.getCursorKey().toString());
+        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
+        venuePage.setPageSize((long)pagesize);
 
-        return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
     }
 
     /**
@@ -217,24 +240,26 @@ public class VenueController extends AbstractRestController {
      *               If asking for the first page, not cursor should be provided.
      * @return a list of venues and a new cursor.
      */
-    @RestReturn(value=JVenuePage.class, entity=JVenuePage.class, code={
+    @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
             @RestCode(code=404, message="NOK", description="No venues found")
     })
     @RequestMapping(value="parent/{id}", method= RequestMethod.GET)
-    public ResponseEntity<JVenuePage> getAllVenuesForParent(HttpServletRequest request,
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForParent(HttpServletRequest request,
                                                             Principal principal,
                                                             @PathVariable String domain,
                                                             @RequestParam(defaultValue = "10") int pagesize,
                                                             @RequestParam(required = false) String cursor,
                                                             @PathVariable Long id) {
 
-        Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlacesForParent(id, cursor, pagesize, dPlaces);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesForParent(id, cursor, pagesize);
 
-        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
+        JCursorPage venuePage = new JCursorPage();
+        venuePage.setCursor(cursorPage.getCursorKey().toString());
+        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
+        venuePage.setPageSize((long)pagesize);
 
-        return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
     }
 
 
@@ -252,11 +277,11 @@ public class VenueController extends AbstractRestController {
      * @param tagIds Optional. Only venues containing the list of tag ids will be searched
      * @return a list of venues matching the search text
      */
-    @RestReturn(value=JVenuePage.class, entity=JVenuePage.class, code={
+    @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
     })
     @RequestMapping(value="search", method= RequestMethod.GET, params="text")
-    public ResponseEntity<JVenuePage> searchForVenue(HttpServletRequest request,
+    public ResponseEntity<JCursorPage<JVenue>> searchForVenue(HttpServletRequest request,
                                                      Principal principal,
                                                      @PathVariable String domain,
                                                      @RequestParam(required = true) String text,
@@ -264,12 +289,14 @@ public class VenueController extends AbstractRestController {
                                                      @RequestParam(defaultValue = "10") int pagesize,
                                                      @RequestParam(required = false) String cursor) {
 
-        Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.textSearchForPlaces(text, tagIds, cursor, pagesize, dPlaces);
+        final CursorPage<DPlace, Long> cursorPage = venueService.textSearchForPlaces(text, tagIds, cursor, pagesize);
 
-        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
+        JCursorPage venuePage = new JCursorPage();
+        venuePage.setCursor(cursorPage.getCursorKey().toString());
+        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
+        venuePage.setPageSize((long)pagesize);
 
-        return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
     }
 
 
@@ -282,12 +309,12 @@ public class VenueController extends AbstractRestController {
      * @param tagIds optional. A list a tag ids. Only places with matching tags will be considered
      * @return a list of venues and a new cursor.
      */
-    @RestReturn(value=JVenuePage.class, entity=JVenuePage.class, code={
+    @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
             @RestCode(code=404, message="NOK", description="No venues found")
     })
     @RequestMapping(value="tags", method= RequestMethod.GET)
-    public ResponseEntity<JVenuePage> getAllVenuesForTagIds(HttpServletRequest request,
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForTagIds(HttpServletRequest request,
                                                             Principal principal,
                                                             @PathVariable String domain,
                                                             @RequestParam(defaultValue = "10") int pagesize,
@@ -295,12 +322,14 @@ public class VenueController extends AbstractRestController {
                                                             @RequestParam(required = true) Long[] tagIds) {
 
 
-        Collection<DPlace> dPlaces = new ArrayList<DPlace>(pagesize);
-        final String newCursor = venueService.getAllPlacesForTags(tagIds, cursor, pagesize, dPlaces);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesForTags(tagIds, cursor, pagesize);
 
-        JVenuePage venuePage = Converter.convert(cursor, pagesize, dPlaces);
+        JCursorPage venuePage = new JCursorPage();
+        venuePage.setCursor(cursorPage.getCursorKey().toString());
+        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
+        venuePage.setPageSize((long)pagesize);
 
-        return new ResponseEntity<JVenuePage>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
     }
 
 
@@ -327,11 +356,10 @@ public class VenueController extends AbstractRestController {
                                                             @RequestParam(defaultValue = "10") int limit,
                                                             @RequestParam(required = true) Long[] tagIds) {
 
-        Collection<DPlace> dPlaces = venueService.getNearbyPlaces(latitude, longitude, radius, tagIds, limit);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getNearbyPlaces(latitude, longitude, radius, tagIds, limit);
 
-        return new ResponseEntity<Collection<JVenue>>((Collection<JVenue>)Converter.convert(dPlaces), HttpStatus.OK);
+        return new ResponseEntity<Collection<JVenue>>((Collection<JVenue>)CONVERTER.convert(cursorPage.getItems()), HttpStatus.OK);
     }
-
 
 
     // Setters

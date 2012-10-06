@@ -1,5 +1,6 @@
 package com.wadpam.pocketvenue.json;
 
+import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
 
 import java.util.Collection;
@@ -21,6 +22,10 @@ public class JTag extends JBaseObject {
 
     /** The tag name */
     private String             name;
+
+    /** Image url */
+    private String             imageUrl;
+
 
     /** The tag name */
     private Collection<JTag>   children;
@@ -62,5 +67,13 @@ public class JTag extends JBaseObject {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

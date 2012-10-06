@@ -7,21 +7,25 @@ Datastore indexes config
 
 Bring in security and app registration, move to common
 
-Check in? Or is this Locations
 
 Upload a CSV file to create the venues
 
 Integration with Google places?
 
-Add url to categories. Generalize. Move to Open.
+
+
+Must
+====
+
+
 
 Add the localization of text (same as TwoForOne categories). Also URL. Move to open.
+i18nTranslation
 
-Tag or Category. Category and i18nTranslation
+Unit/integration tests
 
-Alphabetic sort
+Alphabetic sort, newest sort
 
-Fixed namespace AOP
 
 
 
@@ -43,6 +47,17 @@ Put tag JSON in the cache.
 Opening hours
 Use datastore parent. Need to override.
 Nearby
+
+
+Add url to tags. Generalize. Move to Open. Do not move
+Check in? Or is this Locations - Locations
+Fixed namespace AOP
+
+
+Review all exceptions
+-Location, move to controller
+-Look at all redirects
+-unique error code
 
 
 

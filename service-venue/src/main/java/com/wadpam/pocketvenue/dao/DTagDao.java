@@ -1,6 +1,7 @@
 package com.wadpam.pocketvenue.dao;
 
 import com.google.appengine.api.datastore.Key;
+import com.wadpam.pocketvenue.domain.DTag;
 
 /**
  * Business Methods interface for entity DTag.
@@ -11,5 +12,19 @@ import com.google.appengine.api.datastore.Key;
  * @author mardao DAO generator (net.sf.mardao.plugin.ProcessDomainMojo)
  */
 public interface DTagDao extends GeneratedDTagDao {
+
+    /**
+     * Create a datastore key.
+     * @param id the unique tag id
+     * @return a detastore key
+     */
+    public Key createKey(Long id);
+
+    /**
+     * Delete tags from an interable
+     * @param dTagIterable
+     * @return number of tags deleted
+     */
+    public int deleteIterable(Iterable<DTag> dTagIterable);
 
 }

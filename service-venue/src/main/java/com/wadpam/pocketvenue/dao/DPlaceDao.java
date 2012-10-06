@@ -2,6 +2,7 @@ package com.wadpam.pocketvenue.dao;
 
 import com.google.appengine.api.datastore.Key;
 import com.wadpam.pocketvenue.domain.DPlace;
+import net.sf.mardao.core.CursorPage;
 
 import java.util.Collection;
 import java.util.List;
@@ -23,35 +24,9 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
      * @param pageSize The number of places to return
      * @param text the search text
      * @param tagIds an optional list of tag id
-     * @param result An empty collection of places that will be populated with the results
-     * @return a new cursor that can be used to get the next batch of results
+     * @return a page of places
      */
-    public String searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds, Collection<DPlace> result);
-
-    /**
-     * Get all places.
-     * @param cursor The cursor returned from the previous call to this method. If this is the first call, use null.
-     * @param pageSize The number of places to return
-     * @param result An empty collection of places that will be populated with the results
-     * @return a new cursor that can be used to get the next products.
-     */
-    public String getAllPlaces(String cursor, int pageSize, Collection<DPlace> result);
-
-    /**
-     * Get all places for a parent.
-     * @param cursor The cursor returned from the previous call to this method. If this is the first call, use null.
-     * @param pageSize The number of places to return
-     * @param parentId Optional. The parent it. If specified, only places with this parent id will be returned.
-     * @param result An empty collection of places that will be populated with the results
-     * @return a new cursor that can be used to get the next products.
-     */
-    public String getPlacesForParent(String cursor, int pageSize, Long parentId, Collection<DPlace> result);
-
-    /**
-     * Delete the tag id from all venues
-     * @param tagId the tag id to delete
-     */
-    public void deleteTagId(Long tagId);
+    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds);
 
     /**
      * Get places nearby
@@ -61,10 +36,31 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
      * @param longitude the longitude to search around
      * @param radius the radius to search within
      * @param tagIds A list of tags ids to match against
-     * @param result An empty collection of places that will be populated with the results
      * @return a new cursor that can be used to get the next products.
      */
-    public String searchInIndexForNearby(String cursor, int pageSize, Float latitude,
-                                         Float longitude, int radius, List<Long> tagIds, Collection<DPlace> result);
+    public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
+                                                           Float longitude, int radius, List<Long> tagIds);
 
+    /**
+     * Delete the tag id from all venues
+     * @param tagId the tag id to delete
+     */
+    public void deleteTagId(Long tagId);
+
+    /**
+     * Create a datastore key.
+     * @param id the unique place id.
+     * @return a detastore key
+     */
+    public Key createKey(Long id);
+
+
+    /**
+     * Get place for parent key.
+     * @param cursor the cursor returned from the previous call to this method. If this is the first call, use null.
+     * @param pageSize the number of place to return
+     * @param parentKey the parent key
+     * @return a page of places
+     */
+    public CursorPage<DPlace, Long> queryPageByParentKey(String cursor, int pageSize, Key parentKey);
 }

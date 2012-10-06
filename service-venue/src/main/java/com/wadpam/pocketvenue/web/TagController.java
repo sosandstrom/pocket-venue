@@ -7,6 +7,8 @@ import com.wadpam.docrest.domain.RestReturn;
 import com.wadpam.pocketvenue.domain.DTag;
 import com.wadpam.pocketvenue.json.JTag;
 import com.wadpam.pocketvenue.service.VenueService;
+import com.wadpam.server.exceptions.NotFoundException;
+import com.wadpam.server.exceptions.ServerErrorException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -32,9 +34,13 @@ import java.util.Map;
 @Controller
 @RequestMapping(value="{domain}/tag")
 public class TagController {
-
     static final Logger LOG = LoggerFactory.getLogger(TagController.class);
+    static final int ERROR_CODE_NOT_FOUND = 20000;
+    static final int ERROR_CODE_SEVER_ERROR = 20200;
+
     static final String TAG_CACHE_KEY = "tagKey:";
+
+    static final Converter CONVERTER = new Converter();
 
     private VenueService venueService;
 
@@ -51,13 +57,14 @@ public class TagController {
     })
     @RequestMapping(value="", method= RequestMethod.POST)
     public RedirectView addTag(HttpServletRequest request,
-                               Principal principal,
-                               @PathVariable String domain,
                                @RequestParam(required = false) Long parentId,
                                @RequestParam(required = true) String type,
                                @RequestParam(required = true) String name) {
 
         final DTag body = venueService.addTag(type, parentId, name);
+
+        if (null == body)
+            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 1, String.format("Not possible to create new tag:%s", name), null, "Create tag failed");
 
         // Invalidate the memcache
         MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
@@ -86,14 +93,15 @@ public class TagController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.POST)
     public RedirectView updateTag(HttpServletRequest request,
-                                  Principal principal,
-                                  @PathVariable String domain,
                                   @PathVariable Long id,
                                   @RequestParam(required = false) Long parentId,
-                                  @RequestParam(required = false) String type,
-                                  @RequestParam(required = false) String name) {
+                                  @RequestParam(required = true) String type,
+                                  @RequestParam(required = true) String name) {
 
         final DTag body = venueService.updateTag(id, type, parentId, name);
+
+        if (null == body)
+            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 1, String.format("Tag:%s not found during update", name), null, "Update tag failed");
 
         // Invalidate the memcache
         MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
@@ -119,7 +127,10 @@ public class TagController {
 
         final DTag body = venueService.getTag(id);
 
-        return new ResponseEntity<JTag>(Converter.convert(body), HttpStatus.OK);
+        if (null == body)
+            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 2, String.format("Tag with id:%s not found", id), null, "Tag not found");
+
+        return new ResponseEntity<JTag>(CONVERTER.convert(body), HttpStatus.OK);
     }
 
     /**
@@ -133,8 +144,6 @@ public class TagController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.DELETE)
     public ResponseEntity<JTag> deleteTag(HttpServletRequest request,
-                                          Principal principal,
-                                          @PathVariable String domain,
                                           @PathVariable Long id) {
 
         final DTag body = venueService.deleteTag(id);
@@ -157,8 +166,6 @@ public class TagController {
     })
     @RequestMapping(value="type/{type}", method= RequestMethod.GET)
     public ResponseEntity<Collection<JTag>> getTagHierarchyForType(HttpServletRequest request,
-                                                       Principal principal,
-                                                       @PathVariable String domain,
                                                        @PathVariable String type) {
 
         // Check the cache first
@@ -167,14 +174,14 @@ public class TagController {
 
         if (null == jTags) {
 
-            final Collection<DTag> dTags = venueService.getTagsForType(type);
+            final Iterable<DTag> dTagIterable = venueService.getTagsForType(type);
 
             // Arrange in a hierarchy
             jTags = new ArrayList<JTag>();
             Map<Long, Collection<JTag>> remainingTags = new HashMap<Long, Collection<JTag>>();
 
             // Split in root and non-root tags
-            for (DTag dTag : dTags) {
+            for (DTag dTag : dTagIterable) {
                 // Convert to JTag before we do anything
                 JTag jTag = Converter.convert(dTag);
 
@@ -228,13 +235,14 @@ public class TagController {
     })
     @RequestMapping(value="parent/{id}", method= RequestMethod.GET)
     public ResponseEntity<Collection<JTag>> getTagsForParent(HttpServletRequest request,
-                                                 Principal principal,
-                                                 @PathVariable String domain,
                                                  @PathVariable Long id) {
 
-        final Collection<DTag> body = venueService.getTagsForParent(id);
+        final Iterable<DTag> body = venueService.getTagsForParent(id);
 
-        return new ResponseEntity<Collection<JTag>>((Collection<JTag>)Converter.convert(body), HttpStatus.OK);
+        if (null == body)
+            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 3, String.format("Parent:%s not found", id), null, "Tags not found");
+
+        return new ResponseEntity<Collection<JTag>>((Collection<JTag>)CONVERTER.convert(body), HttpStatus.OK);
     }
 
 

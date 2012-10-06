@@ -8,6 +8,7 @@ import com.google.appengine.api.search.*;
 import com.google.appengine.api.search.Index;
 import com.wadpam.pocketvenue.domain.DPlace;
 import net.sf.mardao.core.CursorPage;
+import net.sf.mardao.core.Filter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,7 +143,7 @@ public class DPlaceDaoBean
 
     // Search in the index for matching places
     @Override
-    public String searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds, Collection<DPlace> result) {
+    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds) {
 
         // Build the query string
         String queryString = null;
@@ -160,7 +161,6 @@ public class DPlaceDaoBean
                 query.append(" AND ").append(text);
 
             queryString = query.toString();
-
         }
 
         // Options
@@ -176,13 +176,13 @@ public class DPlaceDaoBean
                     .setOptions(options)
                     .build(queryString);
 
-        return searchInIndexWithQuery(query, getSearchIndex(), result);
+        return searchInIndexWithQuery(query, getSearchIndex());
     }
 
     // Search for nearby places
     @Override
-    public String searchInIndexForNearby(String cursor, int pageSize, Float latitude,
-                                         Float longitude, int radius, List<Long> tagIds, Collection<DPlace> result) {
+    public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
+                                         Float longitude, int radius, List<Long> tagIds) {
 
         // Build the query string
         String queryString = String.format("distance(location, geopoint(%f, %f)) < %d", latitude, longitude, radius);
@@ -210,7 +210,7 @@ public class DPlaceDaoBean
                 .setOptions(options)
                 .build(queryString);
 
-        return searchInIndexWithQuery(query, getLocationIndex(), result);
+        return searchInIndexWithQuery(query, getLocationIndex());
     }
 
     // Search in index for a query
@@ -254,68 +254,20 @@ public class DPlaceDaoBean
         }
     }
 
-    // Get all places
-    @Override
-    public String getAllPlaces(String cursor, int pageSize, Collection<DPlace> result) {
-        LOG.debug(String.format("Get all place"));
-
-        // Build a query, no filter
-        Query query = new Query("DPlace");
-
-        return getPlacesWithQuery(cursor, query, pageSize, result);
-    }
-
-    // Get all places for a parent
-    @Override
-    public String getPlacesForParent(String cursor, int pageSize, Long parentId, Collection<DPlace> result) {
-        LOG.debug(String.format("Get all place for parent:%s", parentId));
-
-        // Build a query
-        Query query = new Query("DPlace");
-        query.setFilter(new Query.FilterPredicate("parentId", Query.FilterOperator.EQUAL, parentId));
-
-        return getPlacesWithQuery(cursor, query, pageSize, result);
-    }
-
-    // Get places with query
-    private String getPlacesWithQuery(String cursor, Query query, int pageSize ,Collection<DPlace> result) {
-        LOG.debug(String.format("Get places with with cursor:%s page size:%d", cursor, pageSize));
-
-        DatastoreService datastore = DatastoreServiceFactory.getDatastoreService();
-
-        PreparedQuery preparedQuery = datastore.prepare(query);
-
-        // Set fetch options
-        FetchOptions fetchOptions = FetchOptions.Builder.withLimit(pageSize);
-        if (null != cursor)
-            fetchOptions.startCursor(Cursor.fromWebSafeString(cursor));
-
-        // Run the query
-        QueryResultList<Entity> entities = preparedQuery.asQueryResultList(fetchOptions);
-
-        // Build the DProduct domain object from the entities
-        for (Entity entity : entities) {
-            DPlace dPlace = createDomain(entity);
-            result.add(dPlace);
-        }
-
-        // Get a new cursor
-        String newCursor = entities.getCursor().toWebSafeString();
-
-        return newCursor;
-    }
-
     // Delete a tag id from all venues
     public void deleteTagId(Long tagId) {
         LOG.debug(String.format("Delete tag id:%s from all places", tagId));
 
         // Find all places with tag
-        QueryResultIterable<DPlace> resultIterable = queryBy(null, false, null, createEqualsFilter(COLUMN_NAME_TAGS, tagId));
+
+        Iterable<DPlace> dPlaceIterable = null;
+        final Filter filter = createEqualsFilter(COLUMN_NAME_TAGS, tagId);
+        dPlaceIterable = queryIterable(false, 0, -1, null, null, null, false, null, false, filter);
 
         Collection<DPlace> updatedTags = new ArrayList<DPlace>();
-        QueryResultIterator iterator = resultIterable.iterator();
+        Iterator<DPlace> iterator = dPlaceIterable.iterator();
         while (iterator.hasNext()) {
-            DPlace dPlace = (DPlace)iterator.next();
+            DPlace dPlace = iterator.next();
 
             Collection<Long> existingTagIds = dPlace.getTags();
             if (null != existingTagIds) {
@@ -331,5 +283,18 @@ public class DPlaceDaoBean
         for (DPlace dPlace : updatedTags)
             updateIndex(dPlace);
     }
+
+    // Create datastore key
+    @Override
+    public Key createKey(Long id) {
+        return super.createCoreKey(null, id);
+    }
+
+    // Get places for parent key
+    @Override
+    public CursorPage<DPlace, Long> queryPageByParentKey(String cursor, int pageSize, Key parentKey) {
+        return super.queryPage(false, pageSize, parentKey, null, null, false, null, false, cursor, null);
+    }
+
 
 }
