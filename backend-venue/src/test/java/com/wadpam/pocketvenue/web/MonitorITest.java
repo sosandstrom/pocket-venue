@@ -18,9 +18,10 @@ import org.springframework.web.client.RestTemplate;
  */
 public class MonitorITest {
 
-    static final String                  BASE_URL       = "http://localhost:8234/domain/";
+    static final String                  BASE_URL       = "http://localhost:8234/api/test/";
 
     RestTemplate                         template;
+
     public MonitorITest() {
     }
 
@@ -51,7 +52,7 @@ public class MonitorITest {
     public void testMonitorNamespace() {
         ResponseEntity<JMonitor> entity = template.getForEntity(BASE_URL + "monitor/v10", JMonitor.class);
         assertEquals("getMonitor", HttpStatus.OK, entity.getStatusCode());
-        assertEquals("getMonitor namespace", "monitor", entity.getBody().getNamespace());
+        assertEquals("getMonitor namespace", "test", entity.getBody().getNamespace());
     }
 
     @Test

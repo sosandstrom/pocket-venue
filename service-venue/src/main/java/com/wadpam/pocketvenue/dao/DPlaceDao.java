@@ -26,7 +26,7 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
      * @param tagIds an optional list of tag id
      * @return a page of places
      */
-    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds);
+    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, Collection<Long> tagIds);
 
     /**
      * Get places nearby
@@ -39,7 +39,7 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
      * @return a new cursor that can be used to get the next products.
      */
     public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
-                                                           Float longitude, int radius, List<Long> tagIds);
+                                                           Float longitude, int radius, Collection<Long> tagIds);
 
     /**
      * Delete the tag id from all venues

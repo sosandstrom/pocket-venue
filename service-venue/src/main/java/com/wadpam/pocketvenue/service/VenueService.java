@@ -2,6 +2,7 @@ package com.wadpam.pocketvenue.service;
 
 import com.google.appengine.api.datastore.Email;
 import com.google.appengine.api.datastore.GeoPt;
+import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.transaction.Idempotent;
 import com.wadpam.pocketvenue.dao.DPlaceDao;
@@ -11,6 +12,7 @@ import com.wadpam.pocketvenue.domain.DTag;
 import com.wadpam.pocketvenue.json.JVenue;
 import com.wadpam.server.exceptions.BadRequestException;
 import com.wadpam.server.exceptions.NotFoundException;
+import com.wadpam.server.exceptions.ServerErrorException;
 import net.sf.mardao.core.CursorPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +48,7 @@ public class VenueService {
         DPlace dPlace = convertJVenueToDomain(jVenue);
 
         if (null == dPlace)
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 1, String.format("Not possible to convert input parameters to domain object"), null, "Bad request");
+            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 2, String.format("Not possible to convert input parameters to domain object"), null, "Bad request");
 
         // Store and index fields
         placeDao.persist(dPlace);
@@ -66,8 +68,16 @@ public class VenueService {
         if (null != from.getId())
             to.setId(Long.parseLong(from.getId()));
         to.setName(from.getName());
-        if (null != from.getParentId())
-            to.setParentKey(placeDao.createKey(from.getParentId()));
+
+        if (null != from.getParentId()) {
+            LOG.debug("Check that parent exist with id:{}", from.getParentId());
+            DPlace parent = placeDao.findByPrimaryKey(from.getParentId());
+            if (null == parent) {
+                throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 1, String.format("Parent does not exist:%s", from.getParentId()), null, "Bad request");
+            } else
+                to.setParentKey((Key)placeDao.getPrimaryKey(parent));
+        }
+
         to.setShortDescription(from.getShortDescription());
         to.setDescription(from.getDescription());
         to.setOpeningHours(from.getOpeningHours());
@@ -78,8 +88,8 @@ public class VenueService {
         to.setCounty(from.getCounty());
         to.setPostalCode(from.getPostalCode());
         to.setCountry(from.getCountry());
-        if (null != from.getLocation())
-            to.setLocation(new GeoPt(from.getLocation().getLatitude(), from.getLocation().getLongitude()));
+        if (null != from.getLocation() && null != from.getLocation().getLatitude() && null != from.getLocation().getLongitude())
+            to.setLocation(new GeoPt(from.getLocation().getLatitude(), from.getLocation().getLatitude()));
         to.setPhoneNumber(from.getPhoneNumber());
         if (null != from.getEmail())
             to.setEmail(new Email(from.getEmail()));
@@ -111,9 +121,9 @@ public class VenueService {
         DPlace dPlace = convertJVenueToDomain(jVenue);
 
         if (null == dPlace)
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 2, String.format("Not possible to convert input parameters to domain object"), null, "Bad request");
+            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 3, String.format("Not possible to convert input parameters to domain object"), null, "Bad request");
 
-        // Check that the place exist already
+        // Check that the place exist
         DPlace existingPlace = getPlace(dPlace.getId());
         if (null == existingPlace)
             return null;
@@ -128,7 +138,9 @@ public class VenueService {
     public DPlace getPlace(Long id) {
         LOG.debug(String.format("Get place with id %s", id));
 
-        return placeDao.findByPrimaryKey(id);
+        DPlace dPlace = placeDao.findByPrimaryKey(id);
+
+        return dPlace;
     }
 
     // Delete a place by id
@@ -166,23 +178,35 @@ public class VenueService {
     public CursorPage<DPlace, Long> getAllPlacesForTags(Long[] tagIds, String cursor, int pagesize) {
         LOG.debug(String.format("Get places for category tag ids:%s", tagIds));
 
-        return placeDao.searchInIndexForPlaces(cursor, pagesize, null, Arrays.asList(tagIds));
+        Collection<Long> tags = null;
+        if (null != tagIds)
+            tags = new ArrayList<Long>(Arrays.asList(tagIds));
+
+        return placeDao.searchInIndexForPlaces(cursor, pagesize, null, tags);
     }
 
     // Search for a place using free text and optional tags
     public CursorPage<DPlace, Long> textSearchForPlaces(String text, Long[] tagIds, String cursor, int pageSize) {
-        LOG.debug(String.format("Search for places with name:%s and tag ids:%s", text, tagIds.toString()));
+        LOG.debug(String.format("Search for places with name:%s and tag ids:%s", text, tagIds));
+
+        Collection<Long> tags = null;
+        if (null != tagIds)
+                tags = new ArrayList<Long>(Arrays.asList(tagIds));
 
         // User Google search
-        return placeDao.searchInIndexForPlaces(cursor, pageSize, text, Arrays.asList(tagIds));
+        return placeDao.searchInIndexForPlaces(cursor, pageSize, text, tags);
     }
 
     // Search for nearby places
-    public CursorPage<DPlace, Long> getNearbyPlaces(Float latitude, Float longitude, int radius, Long[] tagIds, int limit) {
+    public CursorPage<DPlace, Long> getNearbyPlaces(Float latitude, Float longitude, int radius, Long[] tagIds, String cursor, int pageSize) {
         LOG.debug(String.format("Search for nearby places with lat:%s and lon:%s", latitude, longitude));
 
+        Collection<Long> tags = null;
+        if (null != tagIds)
+            tags = new ArrayList<Long>(Arrays.asList(tagIds));
+
         // User Google search
-        return placeDao.searchInIndexForNearby(null, limit, latitude, longitude, radius, Arrays.asList(tagIds));
+        return placeDao.searchInIndexForNearby(cursor, pageSize, latitude, longitude, radius, tags);
     }
 
     /* Tag related methods */

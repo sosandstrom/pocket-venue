@@ -17,6 +17,7 @@ Integration with Google places?
 Must
 ====
 
+Update parent pom with same as Pocket review
 
 
 Add the localization of text (same as TwoForOne categories). Also URL. Move to open.

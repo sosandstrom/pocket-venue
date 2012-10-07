@@ -143,38 +143,55 @@ public class DPlaceDaoBean
 
     // Search in the index for matching places
     @Override
-    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, List<Long> tagIds) {
+    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, Collection<Long> tagIds) {
 
         // Build the query string
-        String queryString = null;
-        if (null == tagIds || tagIds.size() < 1)
-            queryString = text;
-        else {
-            StringBuilder query = new StringBuilder();
+        StringBuilder queryString = new StringBuilder();
+        if (null != tagIds && tagIds.size() > 0) {
 
             Iterator<Long> iterator = tagIds.iterator();
-            while (iterator.hasNext()) {
-                query.append("tags:").append(iterator.next()).append(" AND ");
+
+            do {
+                queryString.append("tags:").append(iterator.next());
+                if (iterator.hasNext())
+                    queryString.append(" AND ");
+            } while (iterator.hasNext());
+
+
+            if (null != text && text.isEmpty() == false) {
+                queryString.append(" AND ").append("(")
+                        .append("name:").append(text)
+                        .append(" OR ")
+                        .append("city:").append(text)
+                        .append(")");
             }
 
-            if (null != text && text.isEmpty() == false)
-                query.append(" AND ").append(text);
-
-            queryString = query.toString();
+        }
+        else {
+            if (null != text && text.isEmpty() == false)  {
+                queryString.append("name:").append(text)
+                        .append(" OR ")
+                        .append("city:").append(text);
+            }
         }
 
+        // Should not happen but guard to avoid null pointer exceptions later on
+        if (queryString.length() == 0)
+            return new CursorPage<DPlace, Long>();
+
         // Options
-        QueryOptions options = null;
         QueryOptions.Builder builder = QueryOptions.newBuilder()
                 .setLimit(pageSize);
 
-        if (null != cursor)
+        if (null == cursor)
+            builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build());
+        else
             builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build(cursor));
 
         // Build query
         com.google.appengine.api.search.Query query = com.google.appengine.api.search.Query.newBuilder()
-                    .setOptions(options)
-                    .build(queryString);
+                    .setOptions(builder.build())
+                    .build(queryString.toString());
 
         return searchInIndexWithQuery(query, getSearchIndex());
     }
@@ -182,7 +199,7 @@ public class DPlaceDaoBean
     // Search for nearby places
     @Override
     public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
-                                         Float longitude, int radius, List<Long> tagIds) {
+                                         Float longitude, int radius, Collection<Long> tagIds) {
 
         // Build the query string
         String queryString = String.format("distance(location, geopoint(%f, %f)) < %d", latitude, longitude, radius);
@@ -197,17 +214,18 @@ public class DPlaceDaoBean
                 .build();
 
         // Options
-        QueryOptions options = null;
         QueryOptions.Builder builder = QueryOptions.newBuilder()
                 .setSortOptions(SortOptions.newBuilder().addSortExpression(sortExpression))
                 .setLimit(pageSize);
 
-        if (null != cursor)
+        if (null == cursor)
+            builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build());
+        else
             builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build(cursor));
 
         // Build query
         com.google.appengine.api.search.Query query = com.google.appengine.api.search.Query.newBuilder()
-                .setOptions(options)
+                .setOptions(builder.build())
                 .build(queryString);
 
         return searchInIndexWithQuery(query, getLocationIndex());
@@ -219,6 +237,8 @@ public class DPlaceDaoBean
         try {
             // Query the index.
             Results<ScoredDocument> results = index.search(query);
+            LOG.debug("Found {} hits in the index", results.getNumberFound());
+            LOG.debug("Returned {} hits", results.getResults().size());
 
             Collection<Long> ids = new ArrayList<Long>();
             for (ScoredDocument document : results) {
@@ -226,12 +246,17 @@ public class DPlaceDaoBean
                 ids.add(Long.parseLong(document.getId()));
             }
 
-            if (ids.size() != 0) {
+            if (ids.size() > 0) {
                 // We got results, get the places from datastore
                 Iterable<DPlace> dPlaceIterable = queryByPrimaryKeys(null, ids);
 
                 CursorPage<DPlace, Long> cursorPage = new CursorPage<DPlace, Long>();
-                cursorPage.setCursorKey(results.getCursor().toWebSafeString());
+
+                // Get a cursor
+                if (null != results.getCursor())  {
+                    LOG.debug("New cursor:{}", results.getCursor().toWebSafeString());
+                    cursorPage.setCursorKey(results.getCursor().toWebSafeString());
+                }
 
                 Collection<DPlace> dPlaces = new ArrayList<DPlace>(ids.size());
                 cursorPage.setItems(dPlaces);
@@ -243,7 +268,7 @@ public class DPlaceDaoBean
                 return cursorPage;
             } else {
                 // No results
-                return null;
+                return new CursorPage<DPlace, Long>();
             }
         } catch (SearchException e) {
             if (StatusCode.TRANSIENT_ERROR.equals(e.getOperationResult().getCode())) {
@@ -293,6 +318,8 @@ public class DPlaceDaoBean
     // Get places for parent key
     @Override
     public CursorPage<DPlace, Long> queryPageByParentKey(String cursor, int pageSize, Key parentKey) {
+
+
         return super.queryPage(false, pageSize, parentKey, null, null, false, null, false, cursor, null);
     }
 
