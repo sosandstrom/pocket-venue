@@ -20,11 +20,20 @@ public interface DTagDao extends GeneratedDTagDao {
      */
     public Key createKey(Long id);
 
+
     /**
-     * Delete tags from an interable
-     * @param dTagIterable
-     * @return number of tags deleted
+     * Get the key from a domain object
+     * @param dTag the domain object
+     * @return the key
      */
+    public Object getKey(DTag dTag);
+
+
+    /**
+    * Delete tags from an interable
+    * @param dTagIterable  a list of tags to delete
+    * @return number of tags deleted
+    */
     public int deleteIterable(Iterable<DTag> dTagIterable);
 
 }

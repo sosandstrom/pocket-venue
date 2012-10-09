@@ -56,6 +56,13 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
 
 
     /**
+     * Get datastore key from domain
+     * @param dPlace the domain object
+     * @return the data store key
+     */
+    public Key getKey(DPlace dPlace);
+
+    /**
      * Get place for parent key.
      * @param cursor the cursor returned from the previous call to this method. If this is the first call, use null.
      * @param pageSize the number of place to return

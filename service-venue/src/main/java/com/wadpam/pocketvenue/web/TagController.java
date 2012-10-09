@@ -1,5 +1,6 @@
 package com.wadpam.pocketvenue.web;
 
+import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
 import com.wadpam.docrest.domain.RestCode;
@@ -48,8 +49,7 @@ public class TagController {
      * Add a tag.
      * @param type the type of the tag, e.g. "location" or "category". D
      * @param name the name of the tag
-     * @param parentId Optional. The id of the parent tag this tag belong to
-     *                  E.g. "country", "city" in case of location tags
+     * @param parent Optional. The parent tag this tag belong to
      * @return the new tag
      */
     @RestReturn(value= JTag.class, entity=JTag.class, code={
@@ -57,11 +57,11 @@ public class TagController {
     })
     @RequestMapping(value="", method= RequestMethod.POST)
     public RedirectView addTag(HttpServletRequest request,
-                               @RequestParam(required = false) Long parentId,
+                               @RequestParam(required = false) Long parent,
                                @RequestParam(required = true) String type,
                                @RequestParam(required = true) String name) {
 
-        final DTag body = venueService.addTag(type, parentId, name);
+        final DTag body = venueService.addTag(type, parent, name);
 
         if (null == body)
             throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 1, String.format("Not possible to create new tag:%s", name), null, "Create tag failed");
@@ -85,7 +85,7 @@ public class TagController {
      * Update a tag by id.
      * @param type the type of the tag, e.g. "location" or "category"
      * @param name the name of the tag
-     * @param parentId Optional. The id of the parent tag this tag belong to
+     * @param parent Optional. The id of the parent tag this tag belong to
      * @return the updated tag
      */
     @RestReturn(value= JTag.class, entity=JTag.class, code={
@@ -94,11 +94,11 @@ public class TagController {
     @RequestMapping(value="{id}", method= RequestMethod.POST)
     public RedirectView updateTag(HttpServletRequest request,
                                   @PathVariable Long id,
-                                  @RequestParam(required = false) Long parentId,
+                                  @RequestParam(required = false) Long parent,
                                   @RequestParam(required = true) String type,
                                   @RequestParam(required = true) String name) {
 
-        final DTag body = venueService.updateTag(id, type, parentId, name);
+        final DTag body = venueService.updateTag(id, type, parent, name);
 
         if (null == body)
             throw new NotFoundException(ERROR_CODE_NOT_FOUND + 1, String.format("Tag:%s not found during update", name), null, "Update tag failed");
@@ -121,8 +121,6 @@ public class TagController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.GET)
     public ResponseEntity<JTag> getTag(HttpServletRequest request,
-                                       Principal principal,
-                                       @PathVariable String domain,
                                        @PathVariable Long id) {
 
         final DTag body = venueService.getTag(id);
@@ -185,13 +183,13 @@ public class TagController {
                 // Convert to JTag before we do anything
                 JTag jTag = Converter.convert(dTag);
 
-                if (null == dTag.getParentKey())
+                if (null == dTag.getParent())
                     jTags.add(jTag);
                 else {
-                    Collection<JTag> children = remainingTags.get(jTag.getParentId());
+                    Collection<JTag> children = remainingTags.get(jTag.getParent());
                     if (null == children) {
                         children = new ArrayList<JTag>();
-                        remainingTags.put(jTag.getParentId(), children);
+                        remainingTags.put(jTag.getParent(), children);
                     }
                     children.add(jTag);
                 }
@@ -201,7 +199,7 @@ public class TagController {
                 addChildren(parentTag, remainingTags);
 
             // Update memcache
-            memCache.put(TAG_CACHE_KEY + type, jTags);
+            //memCache.put(TAG_CACHE_KEY + type, jTags); // TODO
         }
 
         return new ResponseEntity<Collection<JTag>>(jTags, HttpStatus.OK);

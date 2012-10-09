@@ -12,180 +12,150 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.MalformedURLException;
+
 import static org.junit.Assert.*;
 
 /**
- * Integration tests for venue service.
+ * Integration tests for venues.
  * @author mattiaslevin
  */
-public class VenueITest {
+public class VenueITest extends AbstractITest {
     static final Logger LOG = LoggerFactory.getLogger(VenueITest.class);
 
 
-    static final String                  BASE_URL       = "http://localhost:8234/api/test/";
-
-    RestTemplate template;
-
-    public VenueITest() {
-    }
-
-    @BeforeClass
-    public static void setUpClass() throws Exception {
-    }
-
-    @AfterClass
-    public static void tearDownClass() throws Exception {
-    }
-
-    @Before
-    public void setUp() {
-        template = new RestTemplate();
-
-        // Configure an error handler that does not throw exceptions
-        // All http codes are handled and tested using asserts
-        template.setErrorHandler(new DoNothingResponseErrorHandler());
-    }
-
-    @After
-    public void tearDown() {
+    @Override
+    protected String getBaseUrl() {
+        return "http://localhost:8234/api/test/";
     }
 
 
     @Test
-    public void createVenueWithNameOnly() {
+    public void createVenueWithNameOnly() throws MalformedURLException {
 
         // Create venue
         MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
         map.set("name", "Venue1");
-
-        ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
-        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
-
-        // Get venue
-        entity = template.getForEntity(BASE_URL + "venue/1", JVenue.class);
-        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
+        ResponseEntity<JVenue> entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
         assertTrue("Name", entity.getBody().getName().equals("Venue1"));
     }
 
     @Test
-    public void updateVenueName() {
-
-        // Update venue name
-        MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue1 updated");
-        ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue/1", map, JVenue.class);
-        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
-
-        // Get venue
-        entity = template.getForEntity(BASE_URL + "venue/1", JVenue.class);
-        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
-        assertTrue("Name", entity.getBody().getName().equals("Venue1 updated"));
-    }
-
-
-    @Test
-    public void createVenueWithAllProperties() {
+    public void updateVenueName() throws MalformedURLException {
 
         // Create venue
         MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
         map.set("name", "Venue2");
-        map.set("parentId", "1");
-        setDefaultVenueValues(map);
-        ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
-        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
-
-        // Get venue
-        entity = template.getForEntity(BASE_URL + "venue/2", JVenue.class);
-        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
+        ResponseEntity<JVenue> entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
         assertTrue("Name", entity.getBody().getName().equals("Venue2"));
-        //assertTrue("parentId", entity.getBody().getParentId() == 1L);
-        assertTrue("Short description", entity.getBody().getShortDescription().equals("Short description"));
-        assertTrue("Description", entity.getBody().getDescription().equals("Description"));
+
+        // Update venue name
+        map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue2 updated");
+        entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
+        assertTrue("Name", entity.getBody().getName().equals("Venue2 updated"));
+    }
+
+
+    @Test
+    public void createVenueWithAllProperties() throws MalformedURLException {
+
+        // Create venue
+        MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue3");
+        setDefaultVenueValues(map);
+        ResponseEntity<JVenue>entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
+        assertTrue("Name", entity.getBody().getName().equals("Venue3"));
+        assertDefaultVenueValues(entity.getBody());
     }
 
     @Test
-    public void deleteVenue() {
+    public void deleteVenue() throws MalformedURLException {
 
         // Create
         MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue3");
-        ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
-        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
+        map.set("name", "Venue4");
+        ResponseEntity<JVenue> entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
+        assertTrue("Name", entity.getBody().getName().equals("Venue4"));
 
-        // Get
-        entity = template.getForEntity(BASE_URL + "venue/3", JVenue.class);
-        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
-        assertTrue("Name", entity.getBody().getName().equals("Venue3"));
-
-        // Delete
-        template.delete(BASE_URL + "venue/3");
+        // Delete venue
+        String urlString = BASE_URL + "venue/" + entity.getBody().getId();
+        template.delete(urlString);
 
         // Check that it is deleted
-        ResponseEntity<JRestError> restError = template.getForEntity(BASE_URL + "venue/3", JRestError.class);
+        ResponseEntity<JRestError> restError = template.getForEntity(urlString, JRestError.class);
         assertEquals("Http response 404", HttpStatus.NOT_FOUND, restError.getStatusCode());
     }
 
     @Test
     public void getAllVenues() throws InterruptedException {
 
-        // Create a 3rd venue
+        // Create a 5rd venue
         MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue3");
+        map.set("name", "Venue5");
         ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
         assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
-        // Create a 4th venue
+        // Create a 6th venue
         map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue4");
+        map.set("name", "Venue6");
         entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
         assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
-        //Thread.sleep(1000);
+        Thread.sleep(2000);
 
         // Get all venues (pagesize 10)
         ResponseEntity<JVenueCursorPage> cursorEntity = template.getForEntity(BASE_URL + "venue", JVenueCursorPage.class);
         assertEquals("Http response 200", HttpStatus.OK, cursorEntity.getStatusCode());
-        assertTrue("Number of venues returned", cursorEntity.getBody().getItems().size() == 4);
+        assertTrue("Number of venues returned", cursorEntity.getBody().getItems().size() == 5);
     }
 
     @Test
     public void getAllVenuesWithPagination() {
 
         // Get first 2 venues
-        ResponseEntity<JVenueCursorPage> cursorEntity = template.getForEntity(BASE_URL + "venue?pagesize=2", JVenueCursorPage.class);
-        assertEquals("Http response 200", HttpStatus.OK, cursorEntity.getStatusCode());
-        assertTrue("Number of venues returned", cursorEntity.getBody().getItems().size() == 2);
+        ResponseEntity<JVenueCursorPage> entity = template.getForEntity(BASE_URL + "venue?pagesize=2", JVenueCursorPage.class);
+        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
+        assertTrue("Number of venues returned", entity.getBody().getItems().size() == 2);
 
-        String cursor = cursorEntity.getBody().getCursor();
+        String cursor = entity.getBody().getCursor();
         assertNotNull("Cursor null", cursor);
         assertFalse("Cursor empty", cursor.isEmpty());
 
         // Get the next 2 venues
-        cursorEntity = template.getForEntity(BASE_URL + "venue?pagesize=2&cursor={cursor}", JVenueCursorPage.class, cursor);
-        assertEquals("Http response 200", HttpStatus.OK, cursorEntity.getStatusCode());
-        assertTrue("Number of venues returned", cursorEntity.getBody().getItems().size() == 2);
+        entity = template.getForEntity(BASE_URL + "venue?pagesize=2&cursor={cursor}", JVenueCursorPage.class, cursor);
+        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
+        assertTrue("Number of venues returned", entity.getBody().getItems().size() == 2);
+
+        cursor = entity.getBody().getCursor();
+        assertNotNull("Cursor null", cursor);
+        assertFalse("Cursor empty", cursor.isEmpty());
     }
 
     @Test
-    public void getVenuesForParent() {
+    public void getVenuesForParent() throws MalformedURLException {
+
+        // Create parent venue
+        MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue7");
+        ResponseEntity<JVenue> entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
+        assertTrue("Name", entity.getBody().getName().equals("Venue7"));
+
+        String parentId = entity.getBody().getId();
+        assertNotNull("Parent id", entity.getBody().getId());
 
         // Create a venue with a parent
-        MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue5");
-        map.set("parentId", "1");
-        ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
-        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
-
-        // Get venue
-        entity = template.getForEntity(BASE_URL + "venue/6", JVenue.class);
-        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
-        assertTrue("Name", entity.getBody().getName().equals("Venue5"));
-        //assertTrue("Parent id", entity.getBody().getParentId() == 1L);
-
-        // TODO Test parent venue
-//        entity = template.getForEntity(BASE_URL + "venue/parent/1", JVenue.class);
+        map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue8 with parent");
+        map.set("parentId", parentId);
+        entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
+        assertTrue("Name", entity.getBody().getName().equals("Venue8 with parent"));
+//        assertTrue("Parent id", entity.getBody().getParentId().equals(parentId));
+//
+//        // TODO Test parent venue
+//        entity = template.getForEntity(BASE_URL + "venue/parent/{parent}", JVenue.class, parentId);
 //        assertEquals("Http response 200", HttpStatus.OK, entity.getStatusCode());
-//        assertTrue("Name", entity.getBody().getName().equals("Venue5"));
+//        assertTrue("Name", entity.getBody().getName().equals("Venue8 with parent"));
     }
 
     @Test
@@ -193,14 +163,14 @@ public class VenueITest {
 
         // Create venue
         MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue6 text search 1");
+        map.set("name", "Venue9 text search 1");
         map.set("city", "City1");
         ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
         assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
         // Create venue
         map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue7 text search 2");
+        map.set("name", "Venue10 text search 2");
         map.set("city", "City1");
         entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
         assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
@@ -226,7 +196,7 @@ public class VenueITest {
 
         // Create venue
         MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue8 tags 1 and 2");
+        map.set("name", "Venue11 tags 1 and 2");
         map.set("city", "City2");
         map.add("tags", "1");
         map.add("tags", "2");
@@ -234,14 +204,14 @@ public class VenueITest {
         assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
         map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue9 tags 2");
+        map.set("name", "Venue12 tags 2");
         map.set("city", "City3");
         map.add("tags", "2");
         entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
         assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
         map = new LinkedMultiValueMap<String, Object>();
-        map.set("name", "Venue10 tags 3");
+        map.set("name", "Venue13 tags 3");
         map.set("city", "City3");
         map.add("tags", "2");
         map.add("tags", "3");
@@ -266,14 +236,63 @@ public class VenueITest {
         assertTrue("Number of venues returned", cursorEntity.getBody().getItems().size() == 2);
     }
 
+    // TODO Test lat and long and nearby search
 
 
+    @Test
+    public void nearbySearch() {
+        // Create venue
+        MultiValueMap<String, Object> map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue14 location");
+        map.add("tags", "10");
+        map.add("tags", "11");
+        // street 302
+        map.set("latitude", "11.553236");
+        map.set("longitude", "104.927663");
+        ResponseEntity<JVenue> entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
+        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
-    // TODO Test lat and long
+        map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue15 location");
+        map.add("tags", "11");
+        // street 51 (200m from venue 11)
+        map.set("latitude", "11.554061");
+        map.set("longitude", "104.926429");
+        entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
+        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
+        map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue16 location");
+        map.add("tags", "11");
+        map.add("tags", "12");
+        // street 106 (3km from venue 11)
+        map.set("latitude", "11.574332");
+        map.set("longitude", "104.926767");
+        entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
+        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
+        map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue17 location");
+        map.add("tags", "13");
+        // Temple Udong (8km from venue 11)
+        map.set("latitude", "11.819469");
+        map.set("longitude", "104.743231");
+        entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
+        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
+        map = new LinkedMultiValueMap<String, Object>();
+        map.set("name", "Venue18 location");
+        map.add("tags", "14");
+        // Ministry of Interior (2,5km from venue 11)
+        map.set("latitude", "11.537395");
+        map.set("longitude", "104.927368");
+        entity = template.postForEntity(BASE_URL + "venue", map, JVenue.class);
+        assertEquals("Http response 302", HttpStatus.FOUND, entity.getStatusCode());
 
+        // Search for venues
+        // Geo points are not implemented when running locally
+        // Must be deployed to test
+    }
 
     // Helper methods
     private void setDefaultVenueValues(MultiValueMap<String, Object> map) {
@@ -307,7 +326,7 @@ public class VenueITest {
         map.add("imageUrls", "www.imageRepo.com/image3");
     }
 
-    private void assertDefaulVenueValues(JVenue venue) {
+    private void assertDefaultVenueValues(JVenue venue) {
         assertTrue("Short description", venue.getShortDescription().equals("Short description"));
         assertTrue("Description", venue.getDescription().equals("Description"));
         assertTrue("Opening Hours", venue.getOpeningHours().size() == 7);

@@ -12,7 +12,6 @@ import com.wadpam.pocketvenue.domain.DTag;
 import com.wadpam.pocketvenue.json.JVenue;
 import com.wadpam.server.exceptions.BadRequestException;
 import com.wadpam.server.exceptions.NotFoundException;
-import com.wadpam.server.exceptions.ServerErrorException;
 import net.sf.mardao.core.CursorPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,7 +88,7 @@ public class VenueService {
         to.setPostalCode(from.getPostalCode());
         to.setCountry(from.getCountry());
         if (null != from.getLocation() && null != from.getLocation().getLatitude() && null != from.getLocation().getLongitude())
-            to.setLocation(new GeoPt(from.getLocation().getLatitude(), from.getLocation().getLatitude()));
+            to.setLocation(new GeoPt(from.getLocation().getLatitude(), from.getLocation().getLongitude()));
         to.setPhoneNumber(from.getPhoneNumber());
         if (null != from.getEmail())
             to.setEmail(new Email(from.getEmail()));
@@ -214,23 +213,26 @@ public class VenueService {
     // Create a new tag
     @Transactional
     @Idempotent()
-    public DTag addTag(String type, Long parentId, String name) {
+    public DTag addTag(String type, Long parent, String name) {
         LOG.debug(String.format("Create new tag with type:%s name:%s", type, name));
 
         // Check if the parent exists
-        if (null != parentId) {
-            DTag dParentTag = tagDao.findByPrimaryKey(parentId);
-            if (null == dParentTag) {
-                throw new NotFoundException(ERROR_CODE_BAD_REQUEST + 3, String.format("Parent tag:%s does not exist when create", parentId), null, "Failed creating new tag");
-            }
+        DTag dParentTag = null;
+        if (null != parent) {
+            LOG.debug("Check that parent exists for id:{}", parent);
+            dParentTag = tagDao.findByPrimaryKey(parent);
+            if (null == dParentTag)
+                throw new NotFoundException(ERROR_CODE_BAD_REQUEST + 3, String.format("Parent tag:%s does not exist when create", parent), null, "Failed creating new tag");
         }
 
         // Create the new tag
         DTag dTag = new DTag();
         dTag.setType(type);
         dTag.setName(name);
-        if (null != parentId)
-            dTag.setParentKey(placeDao.createKey(parentId));
+        if (null != dParentTag) {
+            LOG.debug("Parent key:{}", tagDao.getKey(dParentTag));
+            dTag.setParent(tagDao.getKey(dParentTag));
+        }
 
         // Store the new tag
         tagDao.persist(dTag);
@@ -250,8 +252,9 @@ public class VenueService {
             return null;
 
         // Check if the parent exists
+        DTag dParentTag = null;
         if (null != parentId) {
-            DTag dParentTag = tagDao.findByPrimaryKey(parentId);
+            dParentTag = tagDao.findByPrimaryKey(parentId);
             if (null == dParentTag) {
                 throw new NotFoundException(ERROR_CODE_BAD_REQUEST + 4, String.format("Parent tag:%s does not exist during update", parentId), null, "Update tag failed");
             }
@@ -260,8 +263,8 @@ public class VenueService {
         // Update
         dTag.setType(type);
         dTag.setName(name);
-        if (null != parentId)
-            dTag.setParentKey(placeDao.createKey(parentId));
+        if (null != dParentTag)
+            dTag.setParent(tagDao.getKey(dParentTag));
 
         // Store the update tag
         tagDao.persist(dTag);
@@ -295,7 +298,7 @@ public class VenueService {
         placeDao.deleteTagId(dTag.getId());
 
         // Find and delete all children
-        Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.createKey(dTag.getId()));
+        Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.getKey(dTag));
         deleteTags(dTagIterable);
 
         return dTag;
@@ -303,9 +306,11 @@ public class VenueService {
 
     // Recursively
     private void deleteTags(Iterable<DTag> dTags) {
-        if (null != dTags) {
+        if (null != dTags && dTags.iterator().hasNext() == true) {
+
             for (DTag dTag : dTags) {
-                Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.createKey(dTag.getId()));
+                LOG.debug("Delete child tag:{}", dTag);
+                Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.getKey(dTag));
                 deleteTags(dTagIterable);
 
                 // Delete tag from venues

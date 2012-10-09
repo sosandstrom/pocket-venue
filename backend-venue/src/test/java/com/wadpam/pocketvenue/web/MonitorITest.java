@@ -1,46 +1,24 @@
 package com.wadpam.pocketvenue.web;
 
-import static org.junit.Assert.*;
-
 import com.wadpam.open.json.JMonitor;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test the monitor controller.
  * @author sosandstrom
  */
-public class MonitorITest {
+public class MonitorITest extends AbstractITest {
 
-    static final String                  BASE_URL       = "http://localhost:8234/api/test/";
-
-    RestTemplate                         template;
-
-    public MonitorITest() {
+    @Override
+    protected String getBaseUrl() {
+        return "http://localhost:8234/api/test/";
     }
 
-    @BeforeClass
-    public static void setUpClass() throws Exception {
-    }
-
-    @AfterClass
-    public static void tearDownClass() throws Exception {
-    }
-
-    @Before
-    public void setUp() {
-        template = new RestTemplate();
-    }
-
-    @After
-    public void tearDown() {
-    }
 
     @Test
     public void testMonitor() {
@@ -61,5 +39,4 @@ public class MonitorITest {
         assertEquals("getMonitorJsonp", HttpStatus.OK, entity.getStatusCode());
         assertTrue("getMonitorJsonp callback", entity.getBody().startsWith("itest({"));
     }
-
 }

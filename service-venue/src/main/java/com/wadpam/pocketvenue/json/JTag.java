@@ -3,6 +3,7 @@ package com.wadpam.pocketvenue.json;
 import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
 
+import java.io.Serializable;
 import java.util.Collection;
 
 
@@ -10,7 +11,10 @@ import java.util.Collection;
  * Json representation of a tag.
  * @author mattiaslevin
  */
-public class JTag extends JBaseObject {
+public class JTag extends JBaseObject implements Serializable {
+
+    private static final long serialVersionUID = 48103570354439606L;
+
 
     // Id is inherited from from parent class
 
@@ -18,7 +22,7 @@ public class JTag extends JBaseObject {
     private String             type;
 
     /** The parent tag id */
-    private Long               parentId;
+    private Long               parent;
 
     /** The tag name */
     private String             name;
@@ -32,7 +36,7 @@ public class JTag extends JBaseObject {
 
     @Override
     protected String subString() {
-        return String.format("name:%s parent:%s", name, parentId);
+        return String.format("name:%s parent:%s", name, parent);
     }
 
     // Setters and getters
@@ -45,12 +49,12 @@ public class JTag extends JBaseObject {
         this.name = name;
     }
 
-    public Long getParentId() {
-        return parentId;
+    public Long getParent() {
+        return parent;
     }
 
-    public void setParentId(Long parentId) {
-        this.parentId = parentId;
+    public void setParent(Long parent) {
+        this.parent = parent;
     }
 
     public Collection<JTag> getChildren() {

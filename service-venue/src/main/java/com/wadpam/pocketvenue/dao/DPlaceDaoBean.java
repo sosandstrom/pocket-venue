@@ -7,6 +7,8 @@ import com.google.appengine.api.datastore.Cursor;
 import com.google.appengine.api.search.*;
 import com.google.appengine.api.search.Index;
 import com.wadpam.pocketvenue.domain.DPlace;
+import com.wadpam.pocketvenue.domain.DTag;
+import com.wadpam.server.exceptions.BadRequestException;
 import net.sf.mardao.core.CursorPage;
 import net.sf.mardao.core.Filter;
 import org.slf4j.Logger;
@@ -33,7 +35,6 @@ public class DPlaceDaoBean
     static final Logger LOG = LoggerFactory.getLogger(DPlaceDao.class);
 
     static final String SEARCH_INDEX = "searchIndex";
-    static final String LOCATION_INDEX = "locationIndex";
 
     // Default constructor to enable caching by Mardao
     public DPlaceDaoBean() {
@@ -77,19 +78,14 @@ public class DPlaceDaoBean
                 searchBuilder.addField(Field.newBuilder().setName("tags").setText(tagsString));
             }
 
-            getSearchIndex().add(searchBuilder.build());
-
             // Index the geo location
             if (null != dPlace.getLocation()) {
                 GeoPoint geoPoint = new GeoPoint(dPlace.getLocation().getLatitude(), dPlace.getLocation().getLongitude());
-                Document.Builder locationBuilder = Document.newBuilder()
-                        .setId(Long.toString(dPlace.getId()))
-                        .addField(Field.newBuilder().setName("location").setGeoPoint(geoPoint));
-                getLocationIndex().add(locationBuilder.build());
-            } else {
-                // Remove from index
-                getLocationIndex().remove(Long.toString(dPlace.getId()));
+                LOG.info("GeoPoint:{}", geoPoint);
+                searchBuilder.addField(Field.newBuilder().setName("location").setGeoPoint(geoPoint));
             }
+
+            getSearchIndex().add(searchBuilder.build());
 
         } catch (AddException e) {
             if (StatusCode.TRANSIENT_ERROR.equals(e.getOperationResult().getCode())) {
@@ -118,15 +114,6 @@ public class DPlaceDaoBean
         return SearchServiceFactory.getSearchService().getIndex(indexSpec);
     }
 
-    // Build location index
-    private Index getLocationIndex() {
-        IndexSpec indexSpec = IndexSpec.newBuilder()
-                .setName(LOCATION_INDEX)
-                .setConsistency(Consistency.PER_DOCUMENT)
-                .build();
-        return SearchServiceFactory.getSearchService().getIndex(indexSpec);
-    }
-
     // Delete and update index
     public boolean delete(DPlace dPlace) {
 
@@ -135,7 +122,6 @@ public class DPlaceDaoBean
 
         // Remove from index
         getSearchIndex().remove(Long.toString(dPlace.getId()));
-        getLocationIndex().remove(Long.toString(dPlace.getId()));
 
         return result;
     }
@@ -151,12 +137,11 @@ public class DPlaceDaoBean
 
             Iterator<Long> iterator = tagIds.iterator();
 
-            do {
+            while (iterator.hasNext()) {
                 queryString.append("tags:").append(iterator.next());
                 if (iterator.hasNext())
                     queryString.append(" AND ");
-            } while (iterator.hasNext());
-
+            }
 
             if (null != text && text.isEmpty() == false) {
                 queryString.append(" AND ").append("(")
@@ -177,7 +162,7 @@ public class DPlaceDaoBean
 
         // Should not happen but guard to avoid null pointer exceptions later on
         if (queryString.length() == 0)
-            return new CursorPage<DPlace, Long>();
+            return null;
 
         // Options
         QueryOptions.Builder builder = QueryOptions.newBuilder()
@@ -201,12 +186,33 @@ public class DPlaceDaoBean
     public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
                                          Float longitude, int radius, Collection<Long> tagIds) {
 
+        StringBuilder queryString = new StringBuilder();
+
+        // Add tags if provided
+        if (null != tagIds && tagIds.size() > 0) {
+            Iterator<Long> iterator = tagIds.iterator();
+
+            while (iterator.hasNext()) {
+                queryString.append("tags:").append(iterator.next());
+                if (iterator.hasNext())
+                    queryString.append(" AND ");
+            }
+        }
+
         // Build the query string
-        String queryString = String.format("distance(location, geopoint(%f, %f)) < %d", latitude, longitude, radius);
+        if (null != latitude && null != longitude) {
+            if (queryString.length() > 0)
+                queryString.append(" AND ");
+
+            queryString.append(String.format("distance(location, geopoint(%f, %f)) < %d", latitude, longitude, radius));
+        }
+
+        // Should not happen but guard to avoid null pointer exceptions later on
+        if (queryString.length() == 0)
+            return null;
 
         // Sort expression
         String sortString = String.format("distance(location, geopoint(%f, %f))", latitude, longitude);
-
         SortExpression sortExpression = SortExpression.newBuilder()
                 .setExpression(sortString)
                 .setDirection(SortExpression.SortDirection.ASCENDING)
@@ -214,21 +220,21 @@ public class DPlaceDaoBean
                 .build();
 
         // Options
-        QueryOptions.Builder builder = QueryOptions.newBuilder()
+        QueryOptions.Builder optionBuilder = QueryOptions.newBuilder()
                 .setSortOptions(SortOptions.newBuilder().addSortExpression(sortExpression))
                 .setLimit(pageSize);
 
         if (null == cursor)
-            builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build());
+            optionBuilder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build());
         else
-            builder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build(cursor));
+            optionBuilder.setCursor(com.google.appengine.api.search.Cursor.newBuilder().build(cursor));
 
         // Build query
         com.google.appengine.api.search.Query query = com.google.appengine.api.search.Query.newBuilder()
-                .setOptions(builder.build())
-                .build(queryString);
+                .setOptions(optionBuilder.build())
+                .build(queryString.toString());
 
-        return searchInIndexWithQuery(query, getLocationIndex());
+        return searchInIndexWithQuery(query, getSearchIndex());
     }
 
     // Search in index for a query
@@ -315,10 +321,15 @@ public class DPlaceDaoBean
         return super.createCoreKey(null, id);
     }
 
+    // get datastore key
+    @Override
+    public Key getKey(DPlace dPlace) {
+        return (Key)this.getPrimaryKey(dPlace);
+    }
+
     // Get places for parent key
     @Override
     public CursorPage<DPlace, Long> queryPageByParentKey(String cursor, int pageSize, Key parentKey) {
-
 
         return super.queryPage(false, pageSize, parentKey, null, null, false, null, false, cursor, null);
     }

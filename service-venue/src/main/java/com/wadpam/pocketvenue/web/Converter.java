@@ -1,6 +1,8 @@
 package com.wadpam.pocketvenue.web;
 
 
+import com.google.appengine.api.datastore.Key;
+import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
 import com.wadpam.open.web.BaseConverter;
@@ -79,10 +81,11 @@ public class Converter extends BaseConverter {
         JTag to = new JTag();
         to.setId(Long.toString(from.getId()));
         to.setType(from.getType());
-        if (null != from.getParentKey())
-            to.setParentId(from.getParentKey().getId());
+        if (null != from.getParent())
+            to.setParent(((Key)from.getParent()).getId());
         to.setName(from.getName());
-        to.setImageUrl(from.getImageUrl().getValue());
+        if (null != from.getImageUrl())
+            to.setImageUrl(from.getImageUrl().getValue());
 
         return to;
     }

@@ -1,6 +1,7 @@
 package com.wadpam.pocketvenue.dao;
 
 import com.google.appengine.api.datastore.Key;
+import com.wadpam.pocketvenue.domain.DPlace;
 import com.wadpam.pocketvenue.domain.DTag;
 
 import java.util.Collection;
@@ -28,16 +29,19 @@ public class DTagDaoBean
     // Create datastore key
     @Override
     public Key createKey(Long id) {
-        return super.createCoreKey(null, id);
+        return this.createCoreKey(null, id);
+    }
+
+    // get datastore key
+    @Override
+    public Object getKey(DTag dTag) {
+        return this.getPrimaryKey(dTag);
     }
 
 
     // Delete from an iterable
     @Override
     public int deleteIterable(Iterable<DTag> dTagIterable) {
-        return super.delete(dTagIterable);
+        return this.delete(dTagIterable);
     }
-
-
-
 }

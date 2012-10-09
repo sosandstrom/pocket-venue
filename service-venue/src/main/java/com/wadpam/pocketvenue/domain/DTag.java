@@ -1,6 +1,5 @@
 package com.wadpam.pocketvenue.domain;
 
-import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
 import net.sf.mardao.api.Parent;
 import net.sf.mardao.core.domain.AbstractLongEntity;
@@ -17,7 +16,7 @@ public class DTag extends AbstractLongEntity {
 
     /** The parent tag id */
     @Parent(kind = "DTag")
-    private Key                parentKey;
+    private Object             parent;
 
     /** The type of the tags, e.g. "location", "category" */
     @Basic
@@ -47,12 +46,12 @@ public class DTag extends AbstractLongEntity {
         this.name = name;
     }
 
-    public Key getParentKey() {
-        return parentKey;
+    public Object getParent() {
+        return parent;
     }
 
-    public void setParentKey(Key parentKey) {
-        this.parentKey = parentKey;
+    public void setParent(Object parent) {
+        this.parent = parent;
     }
 
     public String getType() {
