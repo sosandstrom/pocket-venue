@@ -72,7 +72,7 @@ public class VenueService {
             if (null == parent) {
                 throw new BadRequestException(ERR_BAD_REQUEST, String.format("Parent does not exist:%s", from.getParent()));
             } else
-                to.setParent(parent);
+                to.setParent(parentKey);
         }
 
         to.setName(from.getName());
@@ -171,6 +171,13 @@ public class VenueService {
         LOG.debug("Get all places for parentKey:{}", parentKey);
 
         return placeDao.queryPageByParentKey(cursor, pagesize, parentKey);
+    }
+
+    // Return all place that does not have a parent
+    public CursorPage<DPlace,Long> getAllPlacesWithNoParent(String cursor, int pagesize) {
+        LOG.debug("Get all places without parent");
+
+        return placeDao.queryPageByParentKey(cursor, pagesize, null);
     }
 
     // Return all places with matching tags
@@ -346,4 +353,5 @@ public class VenueService {
     public void setTagDao(DTagDao tagDao) {
         this.tagDao = tagDao;
     }
+
 }

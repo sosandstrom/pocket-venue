@@ -29,6 +29,7 @@ Generate documentation and deploy
 
 Return loclization in tag lists
 
+Get root places
 
 Done
 ====

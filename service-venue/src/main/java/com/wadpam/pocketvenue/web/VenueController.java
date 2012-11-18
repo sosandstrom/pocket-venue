@@ -264,6 +264,34 @@ public class VenueController extends AbstractRestController {
     }
 
 
+    /**
+     * Get all venues with no parent.
+     * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
+     * @param cursor Optional. The current cursor position during pagination.
+     *               The next page will be return from this position.
+     *               If asking for the first page, not cursor should be provided.
+     * @return a list of venues and a new cursor.
+     */
+    @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
+            @RestCode(code=200, message="OK", description="Venues found"),
+            @RestCode(code=404, message="NOK", description="No venues found")
+    })
+    @RequestMapping(value="root", method= RequestMethod.GET)
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesWithNoParent(
+            HttpServletRequest request,
+            @PathVariable String domain,
+            @RequestParam(defaultValue = "10") int pagesize,
+            @RequestParam(required = false) String cursor) {
+
+        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesWithNoParent(cursor, pagesize);
+
+        if (null == cursorPage)
+            throw new ServerErrorException(ERR_SERVER_ERROR , "Not possible to get venus with no parent");
+
+        return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
+    }
+
+
 
     // TODO Get root venues
 
