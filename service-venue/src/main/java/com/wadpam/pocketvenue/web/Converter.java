@@ -2,10 +2,10 @@ package com.wadpam.pocketvenue.web;
 
 
 import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
 import com.wadpam.open.web.BaseConverter;
+import com.wadpam.pocketvenue.dao.*;
 import com.wadpam.pocketvenue.domain.DPlace;
 import com.wadpam.pocketvenue.domain.DTag;
 import com.wadpam.pocketvenue.domain.Di18nTranslation;
@@ -23,7 +23,11 @@ import java.util.Collection;
  * @author mattiaslevin
  */
 public class Converter extends BaseConverter {
-    static final Logger LOG = LoggerFactory.getLogger(Converter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Converter.class);
+
+    private DTagDao tagDao = new DTagDaoBean();
+    private Di18nTranslationDao translationDao = new Di18nTranslationDaoBean();
+    private DPlaceDao placeDao = new DPlaceDaoBean();
 
     // Convert venues
     public JVenue convert(DPlace from) {
@@ -34,10 +38,10 @@ public class Converter extends BaseConverter {
 
         JVenue to = new JVenue();
 
-        to.setId(Long.toString(from.getId()));
+        to.setId(toString((Key)this.placeDao.getPrimaryKey(from)));
         to.setName(from.getName());
-        if (null != from.getParentKey())
-            to.setParentId(from.getParentKey().getId());
+        if (null != from.getParent())
+            to.setParent(toString((Key)from.getParent()));
         to.setShortDescription(from.getShortDescription());
         to.setDescription(from.getDescription());
         to.setOpeningHours(from.getOpeningHours());
@@ -72,17 +76,17 @@ public class Converter extends BaseConverter {
     }
 
     // Convert tags
-    public static JTag convert(DTag from) {
+    public JTag convert(DTag from) {
 
         if (null == from) {
             return null;
         }
 
         JTag to = new JTag();
-        to.setId(Long.toString(from.getId()));
+        to.setId(toString((Key)this.tagDao.getPrimaryKey(from)));
         to.setType(from.getType());
         if (null != from.getParent())
-            to.setParent(((Key)from.getParent()).getId());
+            to.setParent(toString((Key)from.getParent()));
         to.setName(from.getName());
         if (null != from.getImageUrl())
             to.setImageUrl(from.getImageUrl().getValue());
@@ -91,18 +95,21 @@ public class Converter extends BaseConverter {
     }
 
     // Convert translations
-    public static Ji18nTranslation convert(Di18nTranslation from) {
+    public Ji18nTranslation convert(Di18nTranslation from) {
 
         if (null == from) {
             return null;
         }
 
         Ji18nTranslation to = new Ji18nTranslation();
-        to.setParentKey(toString(from.getParentKey().getId()));
+        to.setId(toString((Key)this.translationDao.getPrimaryKey(from)));
+        to.setParent(toString((Key)from.getParent()));
         to.setLocale(from.getLocale());
         to.setLocalizedString(from.getLocalizedString());
-        to.setLocalizedImage(from.getLocalizedImage().getValue());
-        to.setLocalizedUrl(from.getLocalizedImage().getValue());
+        if (null != from.getLocalizedImage())
+            to.setLocalizedImage(from.getLocalizedImage().getValue());
+        if (null != from.getLocalizedUrl())
+            to.setLocalizedUrl(from.getLocalizedImage().getValue());
 
         return to;
     }
@@ -129,4 +136,8 @@ public class Converter extends BaseConverter {
 
         return to;
     }
+
+
+
+
 }

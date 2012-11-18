@@ -1,9 +1,7 @@
 package com.wadpam.pocketvenue.domain;
 
-import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
-import com.google.cloud.sql.jdbc.internal.Url;
-import net.sf.mardao.api.Parent;
+import net.sf.mardao.core.Parent;
 import net.sf.mardao.core.domain.AbstractCreatedUpdatedEntity;
 
 import javax.persistence.Basic;
@@ -22,8 +20,8 @@ public class Di18nTranslation extends AbstractCreatedUpdatedEntity {
     private String          locale;
 
     /** The parent key this localization belongs to. E.g. a tag or category */
-    @Parent(kind = "Object")
-    private Key             parentKey;
+    @Parent(kind = "Any")
+    private Object          parent;
 
     /** Localized string value */
     @Basic
@@ -39,8 +37,6 @@ public class Di18nTranslation extends AbstractCreatedUpdatedEntity {
 
 
     // Setters and getters
-
-
     public String getLocale() {
         return locale;
     }
@@ -73,11 +69,11 @@ public class Di18nTranslation extends AbstractCreatedUpdatedEntity {
         this.localizedUrl = localizedUrl;
     }
 
-    public Key getParentKey() {
-        return parentKey;
+    public Object getParent() {
+        return parent;
     }
 
-    public void setParentKey(Key parentKey) {
-        this.parentKey = parentKey;
+    public void setParent(Object parent) {
+        this.parent = parent;
     }
 }

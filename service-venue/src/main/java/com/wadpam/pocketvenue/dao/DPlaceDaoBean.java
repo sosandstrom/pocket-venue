@@ -65,11 +65,11 @@ public class DPlaceDaoBean
                     .setId(Long.toString(dPlace.getId()));
 
             // Name
-            if (null != dPlace.getName() && dPlace.getName().isEmpty() == false)
+            if (null != dPlace.getName() && !dPlace.getName().isEmpty())
                 searchBuilder.addField(Field.newBuilder().setName("name").setText(dPlace.getName()));
 
             // City
-            if (null != dPlace.getCity() && dPlace.getCity().isEmpty() == false)
+            if (null != dPlace.getCity() && !dPlace.getCity().isEmpty())
                 searchBuilder.addField(Field.newBuilder().setName("city").setText(dPlace.getCity()));
 
             // Tag ids
@@ -96,10 +96,10 @@ public class DPlaceDaoBean
     }
 
     // Concatenate all tag ids into a string with " " (blank) in between
-    private String buildTagsString (Collection<Long> tags) {
+    private String buildTagsString (Collection<String> tags) {
         StringBuilder result = new StringBuilder();
-        for(Long tag : tags) {
-            result.append(Long.toString(tag));
+        for(String tag : tags) {
+            result.append(tag);
             result.append(" ");
         }
         return result.length() > 0 ? result.substring(0, result.length() - 1) : "";
@@ -129,13 +129,13 @@ public class DPlaceDaoBean
 
     // Search in the index for matching places
     @Override
-    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, Collection<Long> tagIds) {
+    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, Collection<String> tags) {
 
         // Build the query string
         StringBuilder queryString = new StringBuilder();
-        if (null != tagIds && tagIds.size() > 0) {
+        if (null != tags && tags.size() > 0) {
 
-            Iterator<Long> iterator = tagIds.iterator();
+            Iterator<String> iterator = tags.iterator();
 
             while (iterator.hasNext()) {
                 queryString.append("tags:").append(iterator.next());
@@ -143,7 +143,7 @@ public class DPlaceDaoBean
                     queryString.append(" AND ");
             }
 
-            if (null != text && text.isEmpty() == false) {
+            if (null != text && !text.isEmpty()) {
                 queryString.append(" AND ").append("(")
                         .append("name:").append(text)
                         .append(" OR ")
@@ -153,7 +153,7 @@ public class DPlaceDaoBean
 
         }
         else {
-            if (null != text && text.isEmpty() == false)  {
+            if (null != text && !text.isEmpty())  {
                 queryString.append("name:").append(text)
                         .append(" OR ")
                         .append("city:").append(text);
@@ -184,13 +184,13 @@ public class DPlaceDaoBean
     // Search for nearby places
     @Override
     public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
-                                         Float longitude, int radius, Collection<Long> tagIds) {
+                                         Float longitude, int radius, Collection<String> tags) {
 
         StringBuilder queryString = new StringBuilder();
 
         // Add tags if provided
-        if (null != tagIds && tagIds.size() > 0) {
-            Iterator<Long> iterator = tagIds.iterator();
+        if (null != tags && tags.size() > 0) {
+            Iterator<String> iterator = tags.iterator();
 
             while (iterator.hasNext()) {
                 queryString.append("tags:").append(iterator.next());
@@ -286,21 +286,19 @@ public class DPlaceDaoBean
     }
 
     // Delete a tag id from all venues
-    public void deleteTagId(Long tagId) {
+    public void deleteTag(String tagId) {
         LOG.debug(String.format("Delete tag id:%s from all places", tagId));
 
         // Find all places with tag
-
-        Iterable<DPlace> dPlaceIterable = null;
         final Filter filter = createEqualsFilter(COLUMN_NAME_TAGS, tagId);
-        dPlaceIterable = queryIterable(false, 0, -1, null, null, null, false, null, false, filter);
+        Iterable<DPlace> dPlaceIterable = queryIterable(false, 0, -1, null, null, null, false, null, false, filter);
 
         Collection<DPlace> updatedTags = new ArrayList<DPlace>();
         Iterator<DPlace> iterator = dPlaceIterable.iterator();
         while (iterator.hasNext()) {
             DPlace dPlace = iterator.next();
 
-            Collection<Long> existingTagIds = dPlace.getTags();
+            Collection<String> existingTagIds = dPlace.getTags();
             if (null != existingTagIds) {
                 existingTagIds.remove(tagId);
                 updatedTags.add(dPlace);
@@ -313,18 +311,6 @@ public class DPlaceDaoBean
         // Update the index
         for (DPlace dPlace : updatedTags)
             updateIndex(dPlace);
-    }
-
-    // Create datastore key
-    @Override
-    public Key createKey(Long id) {
-        return super.createCoreKey(null, id);
-    }
-
-    // get datastore key
-    @Override
-    public Key getKey(DPlace dPlace) {
-        return (Key)this.getPrimaryKey(dPlace);
     }
 
     // Get places for parent key

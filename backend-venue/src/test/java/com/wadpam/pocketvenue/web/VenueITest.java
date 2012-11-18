@@ -1,16 +1,14 @@
 package com.wadpam.pocketvenue.web;
 
-import com.wadpam.open.integrationtest.DoNothingResponseErrorHandler;
 import com.wadpam.pocketvenue.json.JVenue;
 import com.wadpam.server.json.JRestError;
-import org.junit.*;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 
 import java.net.MalformedURLException;
 
@@ -150,7 +148,7 @@ public class VenueITest extends AbstractITest {
         map.set("parentId", parentId);
         entity = postAndFollowRedirect(BASE_URL + "venue", map, JVenue.class);
         assertTrue("Name", entity.getBody().getName().equals("Venue8 with parent"));
-//        assertTrue("Parent id", entity.getBody().getParentId().equals(parentId));
+//        assertTrue("Parent id", entity.getBody().getParent().equals(parentId));
 //
 //        // TODO Test parent venue
 //        entity = template.getForEntity(BASE_URL + "venue/parent/{parent}", JVenue.class, parentId);

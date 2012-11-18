@@ -1,9 +1,6 @@
 package com.wadpam.pocketvenue.service;
 
-import com.google.appengine.api.datastore.Email;
-import com.google.appengine.api.datastore.GeoPt;
-import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.datastore.Link;
+import com.google.appengine.api.datastore.*;
 import com.wadpam.open.transaction.Idempotent;
 import com.wadpam.pocketvenue.dao.DPlaceDao;
 import com.wadpam.pocketvenue.dao.DTagDao;
@@ -26,10 +23,14 @@ import java.util.Collection;
  * @author mattiaslevin
  */
 public class VenueService {
-    static final Logger LOG = LoggerFactory.getLogger(VenueService.class);
-    static final int ERROR_CODE_NOT_FOUND = 40000;
-    static final int ERROR_CODE_BAD_REQUEST = 40100;
+    private static final Logger LOG = LoggerFactory.getLogger(VenueService.class);
 
+    // Base error code values for each class
+    public static final int ERR_VENUE_SERVICE = 1000;
+    public static final int ERR_TRANSLATION_SERVICE = 2000;
+
+    private static final int ERR_NOT_FOUND = ERR_VENUE_SERVICE + 1;
+    private static final int ERR_BAD_REQUEST = ERR_VENUE_SERVICE + 2;
 
     private DPlaceDao placeDao;
     private DTagDao tagDao;
@@ -41,13 +42,13 @@ public class VenueService {
     @Transactional
     @Idempotent
     public DPlace addPlace(JVenue jVenue) {
-        LOG.debug(String.format("Create new place with name %s", jVenue.getName()));
+        LOG.debug("Create new place with name:{}", jVenue.getName());
 
         // Convert to domain object
         DPlace dPlace = convertJVenueToDomain(jVenue);
 
         if (null == dPlace)
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 2, String.format("Not possible to convert input parameters to domain object"), null, "Bad request");
+            throw new BadRequestException(ERR_BAD_REQUEST, String.format("Not possible to convert input parameters to domain object"));
 
         // Store and index fields
         placeDao.persist(dPlace);
@@ -64,19 +65,17 @@ public class VenueService {
         // Make the conversion
         DPlace to = new DPlace();
 
-        if (null != from.getId())
-            to.setId(Long.parseLong(from.getId()));
-        to.setName(from.getName());
-
-        if (null != from.getParentId()) {
-            LOG.debug("Check that parent exist with id:{}", from.getParentId());
-            DPlace parent = placeDao.findByPrimaryKey(from.getParentId());
+        if (null != from.getParent()) {
+            LOG.debug("Check that parent exist with id:{}", from.getParent());
+            Key parentKey = KeyFactory.stringToKey(from.getParent());
+            DPlace parent = placeDao.findByPrimaryKey(parentKey);
             if (null == parent) {
-                throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 1, String.format("Parent does not exist:%s", from.getParentId()), null, "Bad request");
+                throw new BadRequestException(ERR_BAD_REQUEST, String.format("Parent does not exist:%s", from.getParent()));
             } else
-                to.setParentKey((Key)placeDao.getPrimaryKey(parent));
+                to.setParent(parent);
         }
 
+        to.setName(from.getName());
         to.setShortDescription(from.getShortDescription());
         to.setDescription(from.getDescription());
         to.setOpeningHours(from.getOpeningHours());
@@ -114,44 +113,45 @@ public class VenueService {
     @Transactional
     @Idempotent
     public DPlace updatePlace(JVenue jVenue) {
-        LOG.debug(String.format("Update existing place with id %s", jVenue.getId()));
+        LOG.debug("Update existing place with id:{}", jVenue.getId());
 
         // Convert to domain object
         DPlace dPlace = convertJVenueToDomain(jVenue);
 
         if (null == dPlace)
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 3, String.format("Not possible to convert input parameters to domain object"), null, "Bad request");
+            throw new BadRequestException(ERR_BAD_REQUEST , String.format("Not possible to convert input parameters to domain object"));
 
         // Check that the place exist
-        DPlace existingPlace = getPlace(dPlace.getId());
+        DPlace existingPlace = getPlace(KeyFactory.stringToKey(jVenue.getId()));
         if (null == existingPlace)
             return null;
 
         // Store and index some fields
+        dPlace.setId(existingPlace.getId());
         placeDao.persist(dPlace);
 
         return dPlace;
     }
 
-    // Get place by id
-    public DPlace getPlace(Long id) {
-        LOG.debug(String.format("Get place with id %s", id));
+    // Get place by key
+    public DPlace getPlace(Key key) {
+        LOG.debug("Get place with key:{}", key);
 
-        DPlace dPlace = placeDao.findByPrimaryKey(id);
+        DPlace dPlace = placeDao.findByPrimaryKey(key);
 
         return dPlace;
     }
 
-    // Delete a place by id
+    // Delete a place by key
     @Transactional
     @Idempotent
-    public DPlace deletePlace(Long id) {
-        LOG.debug(String.format("Delete place by id %s", id));
+    public DPlace deletePlace(Key key) {
+        LOG.debug("Delete place by key:{}", key);
 
-        DPlace dPlace = placeDao.findByPrimaryKey(id);
+        DPlace dPlace = placeDao.findByPrimaryKey(key);
 
         if (null == dPlace)
-            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 1, String.format("Place with id:%s not found during delete", id), null, "Delete failed");
+            throw new NotFoundException(ERR_NOT_FOUND, String.format("Place with key:%s not found during delete", key));
 
         // Remove from datastore and update index
         placeDao.delete(dPlace);
@@ -166,46 +166,46 @@ public class VenueService {
         return placeDao.queryPage(pagesize, cursor);
     }
 
-    // Return all places for a parent
-    public CursorPage<DPlace, Long> getAllPlacesForParent(Long parentId, String cursor, int pagesize) {
-        LOG.debug("Get all places for parent:%s", parentId);
+    // Return all places for a parentKey
+    public CursorPage<DPlace, Long> getAllPlacesForParent(Key parentKey, String cursor, int pagesize) {
+        LOG.debug("Get all places for parentKey:{}", parentKey);
 
-        return placeDao.queryPageByParentKey(cursor, pagesize, placeDao.createKey(parentId));
+        return placeDao.queryPageByParentKey(cursor, pagesize, parentKey);
     }
 
     // Return all places with matching tags
-    public CursorPage<DPlace, Long> getAllPlacesForTags(Long[] tagIds, String cursor, int pagesize) {
-        LOG.debug(String.format("Get places for category tag ids:%s", tagIds));
+    public CursorPage<DPlace, Long> getAllPlacesForTags(String[] tags, String cursor, int pagesize) {
+        LOG.debug("Get places for category tag ids:{}", tags);
 
-        Collection<Long> tags = null;
-        if (null != tagIds)
-            tags = new ArrayList<Long>(Arrays.asList(tagIds));
+        Collection<String> tagCollection = null;
+        if (null != tags)
+            tagCollection = new ArrayList<String>(Arrays.asList(tags));
 
-        return placeDao.searchInIndexForPlaces(cursor, pagesize, null, tags);
+        return placeDao.searchInIndexForPlaces(cursor, pagesize, null, tagCollection);
     }
 
     // Search for a place using free text and optional tags
-    public CursorPage<DPlace, Long> textSearchForPlaces(String text, Long[] tagIds, String cursor, int pageSize) {
-        LOG.debug(String.format("Search for places with name:%s and tag ids:%s", text, tagIds));
+    public CursorPage<DPlace, Long> textSearchForPlaces(String text, String[] tags, String cursor, int pageSize) {
+        LOG.debug("Search for places with name:{} and tag ids:{}", text, tags);
 
-        Collection<Long> tags = null;
-        if (null != tagIds)
-                tags = new ArrayList<Long>(Arrays.asList(tagIds));
+        Collection<String> tagCollection = null;
+        if (null != tags)
+            tagCollection = new ArrayList<String>(Arrays.asList(tags));
 
         // User Google search
-        return placeDao.searchInIndexForPlaces(cursor, pageSize, text, tags);
+        return placeDao.searchInIndexForPlaces(cursor, pageSize, text, tagCollection);
     }
 
     // Search for nearby places
-    public CursorPage<DPlace, Long> getNearbyPlaces(Float latitude, Float longitude, int radius, Long[] tagIds, String cursor, int pageSize) {
-        LOG.debug(String.format("Search for nearby places with lat:%s and lon:%s", latitude, longitude));
+    public CursorPage<DPlace, Long> getNearbyPlaces(Float latitude, Float longitude, int radius, String[] tags, String cursor, int pageSize) {
+        LOG.debug("Search for nearby places with lat:{} and lon:{}", latitude, longitude);
 
-        Collection<Long> tags = null;
-        if (null != tagIds)
-            tags = new ArrayList<Long>(Arrays.asList(tagIds));
+        Collection<String> tagCollection = null;
+        if (null != tags)
+            tagCollection = new ArrayList<String>(Arrays.asList(tags));
 
         // User Google search
-        return placeDao.searchInIndexForNearby(cursor, pageSize, latitude, longitude, radius, tags);
+        return placeDao.searchInIndexForNearby(cursor, pageSize, latitude, longitude, radius, tagCollection);
     }
 
     /* Tag related methods */
@@ -213,16 +213,16 @@ public class VenueService {
     // Create a new tag
     @Transactional
     @Idempotent()
-    public DTag addTag(String type, Long parent, String name) {
-        LOG.debug(String.format("Create new tag with type:%s name:%s", type, name));
+    public DTag addTag(String type, Key parentKey, String name) {
+        LOG.debug("Create new tag with type:{} name:{}", type, name);
 
-        // Check if the parent exists
+        // Check if the parentKey exists
         DTag dParentTag = null;
-        if (null != parent) {
-            LOG.debug("Check that parent exists for id:{}", parent);
-            dParentTag = tagDao.findByPrimaryKey(parent);
+        if (null != parentKey) {
+            LOG.debug("Check that parentKey exists for id:{}", parentKey);
+            dParentTag = tagDao.findByPrimaryKey(parentKey);
             if (null == dParentTag)
-                throw new NotFoundException(ERROR_CODE_BAD_REQUEST + 3, String.format("Parent tag:%s does not exist when create", parent), null, "Failed creating new tag");
+                throw new NotFoundException(ERR_BAD_REQUEST, String.format("Parent tag:%s does not exist when create", parentKey));
         }
 
         // Create the new tag
@@ -230,8 +230,8 @@ public class VenueService {
         dTag.setType(type);
         dTag.setName(name);
         if (null != dParentTag) {
-            LOG.debug("Parent key:{}", tagDao.getKey(dParentTag));
-            dTag.setParent(tagDao.getKey(dParentTag));
+            LOG.debug("Parent key:{}", tagDao.getPrimaryKey(dParentTag));
+            dTag.setParent(parentKey);
         }
 
         // Store the new tag
@@ -243,20 +243,20 @@ public class VenueService {
     // Update a tag
     @Transactional
     @Idempotent()
-    public DTag updateTag(Long id, String type, Long parentId, String name) {
-        LOG.debug(String.format("Update tag with id:%s", id));
+    public DTag updateTag(Key key, String type, Key parentKey, String name) {
+        LOG.debug("Update tag with id:{}", key);
 
         // Find
-        DTag dTag = tagDao.findByPrimaryKey(id);
+        DTag dTag = tagDao.findByPrimaryKey(key);
         if (null == dTag)
             return null;
 
-        // Check if the parent exists
+        // Check if the parentKey exists
         DTag dParentTag = null;
-        if (null != parentId) {
-            dParentTag = tagDao.findByPrimaryKey(parentId);
+        if (null != parentKey) {
+            dParentTag = tagDao.findByPrimaryKey(parentKey);
             if (null == dParentTag) {
-                throw new NotFoundException(ERROR_CODE_BAD_REQUEST + 4, String.format("Parent tag:%s does not exist during update", parentId), null, "Update tag failed");
+                throw new NotFoundException(ERR_BAD_REQUEST, String.format("Parent tag:%s does not exist during update", parentKey));
             }
         }
 
@@ -264,7 +264,7 @@ public class VenueService {
         dTag.setType(type);
         dTag.setName(name);
         if (null != dParentTag)
-            dTag.setParent(tagDao.getKey(dParentTag));
+            dTag.setParent(parentKey);
 
         // Store the update tag
         tagDao.persist(dTag);
@@ -272,33 +272,33 @@ public class VenueService {
         return dTag;
     }
 
-    // Get tag by id
-    public DTag getTag(Long id) {
-        LOG.debug(String.format("Get tag with id:%s", id));
+    // Get tag by key
+    public DTag getTag(Key key) {
+        LOG.debug("Get tag with key:{}", key);
 
-        return tagDao.findByPrimaryKey(id);
+        return tagDao.findByPrimaryKey(key);
     }
 
-    // Delete a tag by id
+    // Delete a tag by key
     @Transactional
     @Idempotent()
-    public DTag deleteTag(Long id) {
-        LOG.debug(String.format("Delete tag with id:%s", id));
+    public DTag deleteTag(Key key) {
+        LOG.debug("Delete tag with key:{}", key);
 
         // Find
-        DTag dTag = tagDao.findByPrimaryKey(id);
+        DTag dTag = tagDao.findByPrimaryKey(key);
 
         if (null == dTag)
-            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 2, String.format("Tag with id:%s not found during delete", id), null, "Delete tag failed");
+            throw new NotFoundException(ERR_NOT_FOUND, String.format("Tag with key:%s not found during delete", key));
 
         // Delete tag
         tagDao.delete(dTag);
 
         // Delete tag from venues
-        placeDao.deleteTagId(dTag.getId());
+        placeDao.deleteTag(KeyFactory.keyToString((Key) tagDao.getPrimaryKey(dTag)));
 
         // Find and delete all children
-        Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.getKey(dTag));
+        Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.getPrimaryKey(dTag));
         deleteTags(dTagIterable);
 
         return dTag;
@@ -306,15 +306,15 @@ public class VenueService {
 
     // Recursively
     private void deleteTags(Iterable<DTag> dTags) {
-        if (null != dTags && dTags.iterator().hasNext() == true) {
+        if (null != dTags && dTags.iterator().hasNext()) {
 
             for (DTag dTag : dTags) {
                 LOG.debug("Delete child tag:{}", dTag);
-                Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.getKey(dTag));
+                Iterable<DTag> dTagIterable = tagDao.queryAll(tagDao.getPrimaryKey(dTag));
                 deleteTags(dTagIterable);
 
                 // Delete tag from venues
-                placeDao.deleteTagId(dTag.getId());
+                placeDao.deleteTag(KeyFactory.keyToString((Key) tagDao.getPrimaryKey(dTag)));
             }
 
             tagDao.deleteIterable(dTags);
@@ -323,18 +323,18 @@ public class VenueService {
 
     // Get all tags of a certain type
     public Iterable<DTag> getTagsForType(String type) {
-        LOG.debug(String.format("Get all tags for type:%s", type));
+        LOG.debug("Get all tags for type:{}", type);
 
         // Find tags
         return tagDao.queryByType(type);
     }
 
-    // Get all tags for a parent
-    public Iterable<DTag> getTagsForParent(Long parentId) {
-        LOG.debug(String.format("Get all tags for parent:%s", parentId));
+    // Get all tags for a parentKey
+    public Iterable<DTag> getTagsForParent(Key parentKey) {
+        LOG.debug("Get all tags for parentKey:{}", parentKey);
 
         // Find tags
-        return tagDao.queryAll(tagDao.createKey(parentId));
+        return tagDao.queryAll(parentKey);
     }
 
 

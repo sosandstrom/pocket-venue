@@ -16,11 +16,11 @@ public class JVenueCursorPage {
 
 
     public String getCursor() {
-        return jCursorPage.getCursor();
+        return (String)jCursorPage.getCursorKey();
     }
 
     public void setCursor(String cursor) {
-        this.jCursorPage.setCursor(cursor);
+        this.jCursorPage.setCursorKey(cursor);
     }
 
     public Collection<JVenue> getItems() {
@@ -32,10 +32,10 @@ public class JVenueCursorPage {
     }
 
     public Long getPageSize() {
-        return jCursorPage.getPageSize();
+        return (long)jCursorPage.getPageSize();
     }
 
     public void setPageSize(Long pageSize) {
-        this.jCursorPage.setPageSize(pageSize);
+        this.jCursorPage.setPageSize(pageSize.intValue());
     }
 }

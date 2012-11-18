@@ -1,12 +1,7 @@
 package com.wadpam.pocketvenue.json;
 
-import com.google.appengine.api.datastore.Category;
-import com.google.appengine.api.datastore.Email;
-import com.google.appengine.api.datastore.Key;
-import com.google.appengine.api.datastore.Link;
 import com.wadpam.open.json.JBaseObject;
 import com.wadpam.open.json.JLocation;
-import net.sf.mardao.api.Parent;
 
 import java.util.Collection;
 
@@ -19,7 +14,7 @@ public class JVenue extends JBaseObject {
     // Id is inherited from from parent class
 
     /** The brand id */
-    private Long               parentId;
+    private String             parent;
 
     /** The venue name */
     private String             name;
@@ -37,7 +32,7 @@ public class JVenue extends JBaseObject {
     // Tag groups
 
     /** App specific tag group 1 */
-    private Collection<Long>   tags;
+    private Collection<String>   tags;
 
 
     // Address
@@ -97,15 +92,15 @@ public class JVenue extends JBaseObject {
 
     @Override
     protected String subString() {
-        return String.format("name:%s parent:%s", name, parentId);
+        return String.format("name:%s parent:%s", name, parent);
     }
 
-    public Long getParentId() {
-        return parentId;
+    public String getParent() {
+        return parent;
     }
 
-    public void setParentId(Long parentId) {
-        this.parentId = parentId;
+    public void setParent(String parent) {
+        this.parent = parent;
     }
 
     public String getName() {
@@ -188,11 +183,11 @@ public class JVenue extends JBaseObject {
         this.location = location;
     }
 
-    public Collection<Long> getTags() {
+    public Collection<String> getTags() {
         return tags;
     }
 
-    public void setTags(Collection<Long> tags) {
+    public void setTags(Collection<String> tags) {
         this.tags = tags;
     }
 

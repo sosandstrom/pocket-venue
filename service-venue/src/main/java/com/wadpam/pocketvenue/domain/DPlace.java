@@ -2,15 +2,12 @@ package com.wadpam.pocketvenue.domain;
 
 import com.google.appengine.api.datastore.Email;
 import com.google.appengine.api.datastore.GeoPt;
-import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.Link;
-import net.sf.mardao.api.Parent;
-import net.sf.mardao.api.domain.AEDLongEntity;
+import net.sf.mardao.core.Parent;
 import net.sf.mardao.core.domain.AbstractLongEntity;
 
 import javax.persistence.Basic;
 import javax.persistence.Entity;
-import javax.persistence.Id;
 import java.util.Collection;
 
 /**
@@ -22,7 +19,7 @@ public class DPlace extends AbstractLongEntity {
 
     /** The parent place id */
     @Parent(kind = "DPlace")
-    private Key                parentKey;
+    private Object             parent;
 
     /** The place name */
     @Basic
@@ -45,7 +42,7 @@ public class DPlace extends AbstractLongEntity {
 
     /** Tags assigned to this place */
     @Basic
-    private Collection<Long>   tags;
+    private Collection<String>   tags;
 
 
     // Address
@@ -134,12 +131,12 @@ public class DPlace extends AbstractLongEntity {
         return null != location ? location.getLongitude() : -200;
     }
 
-    public Key getParentKey() {
-        return parentKey;
+    public Object getParent() {
+        return parent;
     }
 
-    public void setParentKey(Key parentKey) {
-        this.parentKey = parentKey;
+    public void setParent(Object parent) {
+        this.parent = parent;
     }
 
     public String getName() {
@@ -222,11 +219,11 @@ public class DPlace extends AbstractLongEntity {
         this.location = location;
     }
 
-    public Collection<Long> getTags() {
+    public Collection<String> getTags() {
         return tags;
     }
 
-    public void setTags(Collection<Long> tags) {
+    public void setTags(Collection<String> tags) {
         this.tags = tags;
     }
 

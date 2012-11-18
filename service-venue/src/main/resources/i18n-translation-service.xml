@@ -18,14 +18,7 @@
     <!--           Controllers             -->
     <bean id="i18nController" class="com.wadpam.pocketvenue.web.I18nController">
         <property name="translationService" ref="translationService" />
-        <property name="keyFactoryMap">
-            <map>
-                <entry key="tags" value-ref="tagParentKeyFactory" />
-            </map>
-        </property>
     </bean>
-
-    <bean id="tagParentKeyFactory" class="com.wadpam.pocketvenue.web.TagParentKeyFactory" />
 
     <!--           DAO             -->
     <bean id="di18nTranslationDao"

@@ -12,7 +12,7 @@ public class Ji18nTranslation extends JBaseObject {
     private String            locale;
 
     /** The parent key this localization belongs to. E.g. a tag or category */
-    private String            parentKey;
+    private String            parent;
 
     /** Localized string value */
     private String            localizedString;
@@ -63,11 +63,11 @@ public class Ji18nTranslation extends JBaseObject {
         this.localizedUrl = localizedUrl;
     }
 
-    public String getParentKey() {
-        return parentKey;
+    public String getParent() {
+        return parent;
     }
 
-    public void setParentKey(String parentKey) {
-        this.parentKey = parentKey;
+    public void setParent(String parent) {
+        this.parent = parent;
     }
 }

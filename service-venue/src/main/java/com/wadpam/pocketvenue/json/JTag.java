@@ -22,7 +22,7 @@ public class JTag extends JBaseObject implements Serializable {
     private String             type;
 
     /** The parent tag id */
-    private Long               parent;
+    private String             parent;
 
     /** The tag name */
     private String             name;
@@ -31,7 +31,7 @@ public class JTag extends JBaseObject implements Serializable {
     private String             imageUrl;
 
 
-    /** The tag name */
+    /** The tag children */
     private Collection<JTag>   children;
 
     @Override
@@ -49,11 +49,11 @@ public class JTag extends JBaseObject implements Serializable {
         this.name = name;
     }
 
-    public Long getParent() {
+    public String getParent() {
         return parent;
     }
 
-    public void setParent(Long parent) {
+    public void setParent(String parent) {
         this.parent = parent;
     }
 

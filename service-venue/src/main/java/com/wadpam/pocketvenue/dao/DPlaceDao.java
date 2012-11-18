@@ -23,10 +23,10 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
      * @param cursor The cursor returned from the previous call to this method. If this is the first call, use null.
      * @param pageSize The number of places to return
      * @param text the search text
-     * @param tagIds an optional list of tag id
+     * @param tags an optional list of tag id
      * @return a page of places
      */
-    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, Collection<Long> tagIds);
+    public CursorPage<DPlace, Long> searchInIndexForPlaces(String cursor, int pageSize, String text, Collection<String> tags);
 
     /**
      * Get places nearby
@@ -35,32 +35,17 @@ public interface DPlaceDao extends GeneratedDPlaceDao {
      * @param latitude the latitude to search around
      * @param longitude the longitude to search around
      * @param radius the radius to search within
-     * @param tagIds A list of tags ids to match against
+     * @param tags A list of tags ids to match against
      * @return a new cursor that can be used to get the next products.
      */
     public CursorPage<DPlace, Long> searchInIndexForNearby(String cursor, int pageSize, Float latitude,
-                                                           Float longitude, int radius, Collection<Long> tagIds);
+                                                           Float longitude, int radius, Collection<String> tags);
 
     /**
      * Delete the tag id from all venues
      * @param tagId the tag id to delete
      */
-    public void deleteTagId(Long tagId);
-
-    /**
-     * Create a datastore key.
-     * @param id the unique place id.
-     * @return a detastore key
-     */
-    public Key createKey(Long id);
-
-
-    /**
-     * Get datastore key from domain
-     * @param dPlace the domain object
-     * @return the data store key
-     */
-    public Key getKey(DPlace dPlace);
+    public void deleteTag(String tagId);
 
     /**
      * Get place for parent key.

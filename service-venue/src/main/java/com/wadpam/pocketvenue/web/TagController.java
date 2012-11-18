@@ -1,5 +1,6 @@
 package com.wadpam.pocketvenue.web;
 
+import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
 import com.google.appengine.api.memcache.MemcacheService;
 import com.google.appengine.api.memcache.MemcacheServiceFactory;
@@ -20,9 +21,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.view.RedirectView;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.servlet.http.HttpServletRequest;
-import java.security.Principal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -35,13 +36,14 @@ import java.util.Map;
 @Controller
 @RequestMapping(value="{domain}/tag")
 public class TagController {
-    static final Logger LOG = LoggerFactory.getLogger(TagController.class);
-    static final int ERROR_CODE_NOT_FOUND = 20000;
-    static final int ERROR_CODE_SEVER_ERROR = 20200;
+    private static final Logger LOG = LoggerFactory.getLogger(TagController.class);
 
-    static final String TAG_CACHE_KEY = "tagKey:";
+    private static final int ERR_NOT_FOUND = VenueService.ERR_VENUE_SERVICE + 100;
+    private static final int ERR_SERVER_ERROR = VenueService.ERR_VENUE_SERVICE + 101;
 
-    static final Converter CONVERTER = new Converter();
+    private static final String TAG_CACHE_KEY = "tagKey:";
+
+    private static final Converter CONVERTER = new Converter();
 
     private VenueService venueService;
 
@@ -57,20 +59,25 @@ public class TagController {
     })
     @RequestMapping(value="", method= RequestMethod.POST)
     public RedirectView addTag(HttpServletRequest request,
-                               @RequestParam(required = false) Long parent,
+                               UriComponentsBuilder uriBuilder,
+                               @PathVariable String domain,
+                               @RequestParam(required = false) String parent,
                                @RequestParam(required = true) String type,
                                @RequestParam(required = true) String name) {
 
-        final DTag body = venueService.addTag(type, parent, name);
+        Key parentKey = parent != null ? KeyFactory.stringToKey(parent) : null;
+        final DTag body = venueService.addTag(type, parentKey, name);
 
         if (null == body)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 1, String.format("Not possible to create new tag:%s", name), null, "Create tag failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, String.format("Not possible to create new tag:%s", name));
 
         // Invalidate the memcache
         MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
         memCache.delete(tagCacheKey(body));
 
-        return new RedirectView(request.getRequestURI() + "/" + body.getId().toString());
+        JTag jTag = CONVERTER.convert(body);
+        return new RedirectView(uriBuilder.path("/{domain}/tag/{id}")
+                .buildAndExpand(domain, jTag.getId()).toUriString());
     }
 
     // Build the cache key for memcache
@@ -83,6 +90,7 @@ public class TagController {
 
     /**
      * Update a tag by id.
+     * @param id the id of the tag
      * @param type the type of the tag, e.g. "location" or "category"
      * @param name the name of the tag
      * @param parent Optional. The id of the parent tag this tag belong to
@@ -93,15 +101,17 @@ public class TagController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.POST)
     public RedirectView updateTag(HttpServletRequest request,
-                                  @PathVariable Long id,
-                                  @RequestParam(required = false) Long parent,
+                                  @PathVariable String id,
+                                  @RequestParam(required = false) String parent,
                                   @RequestParam(required = true) String type,
                                   @RequestParam(required = true) String name) {
 
-        final DTag body = venueService.updateTag(id, type, parent, name);
+        Key key = KeyFactory.stringToKey(id);
+        Key parentKey = parent != null ? KeyFactory.stringToKey(parent) : null;
+        final DTag body = venueService.updateTag(key, type, parentKey, name);
 
         if (null == body)
-            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 1, String.format("Tag:%s not found during update", name), null, "Update tag failed");
+            throw new NotFoundException(ERR_NOT_FOUND, String.format("Tag:%s not found during update", name));
 
         // Invalidate the memcache
         MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
@@ -112,7 +122,7 @@ public class TagController {
 
     /**
      * Get a tag by id.
-     * @param id the id of the tag.
+     * @param id the id of the tag
      * @return the tag
      */
     @RestReturn(value=JTag.class, entity=JTag.class, code={
@@ -121,19 +131,20 @@ public class TagController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.GET)
     public ResponseEntity<JTag> getTag(HttpServletRequest request,
-                                       @PathVariable Long id) {
+                                       @PathVariable String id) {
 
-        final DTag body = venueService.getTag(id);
+        Key key = KeyFactory.stringToKey(id);
+        final DTag body = venueService.getTag(key);
 
         if (null == body)
-            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 2, String.format("Tag with id:%s not found", id), null, "Tag not found");
+            throw new NotFoundException(ERR_NOT_FOUND, String.format("Tag with id:%s not found", id));
 
         return new ResponseEntity<JTag>(CONVERTER.convert(body), HttpStatus.OK);
     }
 
     /**
      * Delete a tag by id.
-     * @param id the id of the tag.
+     * @param id the id of the tag
      * @return the and http response code indicating the outcome of the operation
      */
     @RestReturn(value=JTag.class, entity=JTag.class, code={
@@ -142,9 +153,10 @@ public class TagController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.DELETE)
     public ResponseEntity<JTag> deleteTag(HttpServletRequest request,
-                                          @PathVariable Long id) {
+                                          @PathVariable String id) {
 
-        final DTag body = venueService.deleteTag(id);
+        Key key = KeyFactory.stringToKey(id);
+        final DTag body = venueService.deleteTag(key);
 
         // Invalidate the memcache
         MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
@@ -164,7 +176,7 @@ public class TagController {
     })
     @RequestMapping(value="type/{type}", method= RequestMethod.GET)
     public ResponseEntity<Collection<JTag>> getTagHierarchyForType(HttpServletRequest request,
-                                                       @PathVariable String type) {
+                                                                   @PathVariable String type) {
 
         // Check the cache first
         MemcacheService memCache = MemcacheServiceFactory.getMemcacheService();
@@ -176,12 +188,12 @@ public class TagController {
 
             // Arrange in a hierarchy
             jTags = new ArrayList<JTag>();
-            Map<Long, Collection<JTag>> remainingTags = new HashMap<Long, Collection<JTag>>();
+            Map<String, Collection<JTag>> remainingTags = new HashMap<String, Collection<JTag>>();
 
             // Split in root and non-root tags
             for (DTag dTag : dTagIterable) {
                 // Convert to JTag before we do anything
-                JTag jTag = Converter.convert(dTag);
+                JTag jTag = CONVERTER.convert(dTag);
 
                 if (null == dTag.getParent())
                     jTags.add(jTag);
@@ -206,7 +218,7 @@ public class TagController {
     }
 
     // Build a hierarchy of tags
-    private void addChildren(JTag parentTag, Map<Long, Collection<JTag>> tags) {
+    private void addChildren(JTag parentTag, Map<String, Collection<JTag>> tags) {
         //LOG.debug(String.format("Add children for parent:%s, remaining tags:%s", parentTag, tags));
         Collection<JTag> childTags = tags.get(parentTag.getId());
 
@@ -224,21 +236,22 @@ public class TagController {
 
     /**
      * Get all tags for a parent.
-     * @param id the parent
+     * @param parent the parent
      * @return all list of child tags
      */
     @RestReturn(value=JTag.class, entity=JTag.class, code={
             @RestCode(code=200, message="OK", description="Tags found"),
             @RestCode(code=404, message="NOK", description="Tags not found")
     })
-    @RequestMapping(value="parent/{id}", method= RequestMethod.GET)
+    @RequestMapping(value="parent/{parent}", method= RequestMethod.GET)
     public ResponseEntity<Collection<JTag>> getTagsForParent(HttpServletRequest request,
-                                                 @PathVariable Long id) {
+                                                 @PathVariable String parent) {
 
-        final Iterable<DTag> body = venueService.getTagsForParent(id);
+        Key parentKey = KeyFactory.stringToKey(parent);
+        final Iterable<DTag> body = venueService.getTagsForParent(parentKey);
 
         if (null == body)
-            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 3, String.format("Parent:%s not found", id), null, "Tags not found");
+            throw new NotFoundException(ERR_NOT_FOUND, String.format("Parent:%s not found", parent));
 
         return new ResponseEntity<Collection<JTag>>((Collection<JTag>)CONVERTER.convert(body), HttpStatus.OK);
     }

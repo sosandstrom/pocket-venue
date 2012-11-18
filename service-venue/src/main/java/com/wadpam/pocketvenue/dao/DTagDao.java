@@ -14,22 +14,6 @@ import com.wadpam.pocketvenue.domain.DTag;
 public interface DTagDao extends GeneratedDTagDao {
 
     /**
-     * Create a datastore key.
-     * @param id the unique tag id
-     * @return a detastore key
-     */
-    public Key createKey(Long id);
-
-
-    /**
-     * Get the key from a domain object
-     * @param dTag the domain object
-     * @return the key
-     */
-    public Object getKey(DTag dTag);
-
-
-    /**
     * Delete tags from an interable
     * @param dTagIterable  a list of tags to delete
     * @return number of tags deleted

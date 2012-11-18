@@ -1,7 +1,7 @@
 package com.wadpam.pocketvenue.domain;
 
 import com.google.appengine.api.datastore.Link;
-import net.sf.mardao.api.Parent;
+import net.sf.mardao.core.Parent;
 import net.sf.mardao.core.domain.AbstractLongEntity;
 
 import javax.persistence.Basic;

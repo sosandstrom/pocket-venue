@@ -1,5 +1,7 @@
 package com.wadpam.pocketvenue.web;
 
+import com.google.appengine.api.datastore.Key;
+import com.google.appengine.api.datastore.KeyFactory;
 import com.wadpam.docrest.domain.RestCode;
 import com.wadpam.docrest.domain.RestReturn;
 import com.wadpam.open.json.JCursorPage;
@@ -20,9 +22,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.view.RedirectView;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.servlet.http.HttpServletRequest;
-import java.security.Principal;
 import java.util.Collection;
 
 /**
@@ -32,25 +34,25 @@ import java.util.Collection;
 @Controller
 @RequestMapping(value="{domain}/venue")
 public class VenueController extends AbstractRestController {
-    static final int ERROR_CODE_NOT_FOUND = 10000;
-    static final int ERROR_CODE_BAD_REQUEST = 10100;
-    static final int ERROR_CODE_SEVER_ERROR = 10200;
+    private static final Logger LOG = LoggerFactory.getLogger(VenueController.class);
 
-    static final Logger LOG = LoggerFactory.getLogger(VenueController.class);
+    private static final int ERR_NOT_FOUND = VenueService.ERR_VENUE_SERVICE + 201;
+    private final int ERR_BAD_REQUEST = VenueService.ERR_VENUE_SERVICE + 202;
+    private final int ERR_SERVER_ERROR = VenueService.ERR_VENUE_SERVICE + 202;
 
-    static final Converter CONVERTER = new Converter();
+    private static final Converter CONVERTER = new Converter();
 
     private VenueService venueService;
 
     /**
      * Create a venue.
      * @param name the name of the venue
-     * @param parentId Optional. The id of the parent venue this venue belong to
+     * @param parent Optional. The id of the parent venue this venue belong to
      * @param shortDescription Optional. A short description of the venue
      * @param description Optional. A description of the venue
      * @param openingHours Optional. A list of string describing the opening hours.
      *                     Suggest one string for each weekday. Indicate closed with "CLOSED" or ""
-     * @param tagIds Optional. A list of app specific tag ids
+     * @param tags Optional. A list of app specific tag ids
      * @param street Optional. Street name
      * @param cityArea Optional. City area
      * @param city Optional. City
@@ -73,14 +75,16 @@ public class VenueController extends AbstractRestController {
     })
     @RequestMapping(value="", method= RequestMethod.POST)
     public RedirectView addVenue(HttpServletRequest request,
+                                 UriComponentsBuilder uriBuilder,
+                                 @PathVariable String domain,
                                  @ModelAttribute("jVenue") JVenue jVenue,
                                  @ModelAttribute("jLocation") JLocation jLocation,
                                  BindingResult result) {
 
         // Check for binding errors
         if (result.hasErrors()) {
-            LOG.debug(String.format("Data binding to venue failed with reason:%s"), result.toString());
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 1, String.format("Data binding to venue failed with reason:%s", result.toString()), null, "Bad request");
+            LOG.debug("Data binding to venue failed with reason:{}", result.toString());
+            throw new BadRequestException(ERR_BAD_REQUEST, String.format("Data binding to venue failed with reason:%s", result.toString()));
         }
 
         // Set the location outside the binding
@@ -88,20 +92,22 @@ public class VenueController extends AbstractRestController {
 
         // Check that we have a minimum set of parameters
         if (null == jVenue.getName() || jVenue.getName().isEmpty())
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 2, "Client must provide a venue name", null, "Bad request, missing venue name");
+            throw new BadRequestException(ERR_BAD_REQUEST, "Client must provide a venue name");
 
         // Create the venue
         final DPlace body = venueService.addPlace(jVenue);
 
         if (null == body)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 1, String.format("Failed to create new venue:%s", jVenue.getName()), null, "Create new venue failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, String.format("Failed to create new venue:%s", jVenue.getName()));
 
-        return new RedirectView(request.getRequestURI() + "/" + body.getId().toString());
+        JVenue createdVenue = CONVERTER.convert(body);
+        return new RedirectView(uriBuilder.path("/{domain}/venue/{id}").
+                buildAndExpand(domain, createdVenue.getId()).toUriString());
     }
 
     /**
      * Update venue by id.
-     * @param id the id of the venue.
+     * @param id the id of the venue
      * @param name the name of the venue
      * @param parentId Optional. The id of the parent venue this venue belong to
      * @param shortDescription Optional. A short description of the venue
@@ -130,36 +136,36 @@ public class VenueController extends AbstractRestController {
     })
     @RequestMapping(value="{id}", method= RequestMethod.POST)
     public RedirectView updateVenue(HttpServletRequest request,
-                                    @PathVariable Long id,
+                                    @PathVariable String id,
                                     @ModelAttribute("jVenue") JVenue jVenue,
                                     @ModelAttribute("jLocation") JLocation jLocation,
                                     BindingResult result) {
 
         if (result.hasErrors()) {
-            LOG.debug(String.format("Data binding to venue failed with reason:%s"), result.toString());
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 3, String.format("Data binding to venue failed with reason:%s", result.toString()), null, "Bad request");
+            LOG.debug("Data binding to venue failed with reason:{}", result.toString());
+            throw new BadRequestException(ERR_BAD_REQUEST, String.format("Data binding to venue failed with reason:%s", result.toString()));
         }
 
         // Check that we have a minimum set of parameters
         if (null == jVenue.getName() || jVenue.getName().isEmpty())
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 4, "Client must provide a venue name", null, "Bad request, missing venue name");
+            throw new BadRequestException(ERR_BAD_REQUEST, "Client must provide a venue name");
 
         // Add the id to the binding
-        jVenue.setId(Long.toString(id));
+        jVenue.setId(id);
         // Set the location outside the binding
         jVenue.setLocation(jLocation);
 
         final DPlace body = venueService.updatePlace(jVenue);
 
         if (null == body)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 2, String.format("Failed to update venue with id:%s", jVenue.getId()), null, "Update venue failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, String.format("Failed to update venue with id:%s", jVenue.getId()));
 
         return new RedirectView(request.getRequestURI());
     }
 
     /**
      * Get a venue by id.
-     * @param id the id of the venue.
+     * @param id the id of the venue
      * @return the venue
      */
     @RestReturn(value=JVenue.class, entity=JVenue.class, code={
@@ -169,19 +175,20 @@ public class VenueController extends AbstractRestController {
     @RequestMapping(value="{id}", method= RequestMethod.GET)
     public ResponseEntity<JVenue> getVenue(HttpServletRequest request,
                                            @PathVariable String domain,
-                                           @PathVariable Long id) {
+                                           @PathVariable String id) {
 
-        final DPlace body = venueService.getPlace(id);
+        Key key = KeyFactory.stringToKey(id);
+        final DPlace body = venueService.getPlace(key);
 
         if (null == body)
-            throw new NotFoundException(ERROR_CODE_NOT_FOUND + 1, String.format("Place with id:%s not found", id), null, "Venue not found");
+            throw new NotFoundException(ERR_NOT_FOUND, String.format("Place with id:%s not found", id));
 
         return new ResponseEntity<JVenue>(CONVERTER.convert(body), HttpStatus.OK);
     }
 
     /**
      * Delete a venue by id.
-     * @param id the id of the venue.
+     * @param id the id of the venue
      * @return the and http response code indicating the outcome of the operation
      */
     @RestReturn(value=JVenue.class, entity=JVenue.class, code={
@@ -191,9 +198,10 @@ public class VenueController extends AbstractRestController {
     @RequestMapping(value="{id}", method= RequestMethod.DELETE)
     public ResponseEntity<JVenue> deleteVenue(HttpServletRequest request,
                                               @PathVariable String domain,
-                                              @PathVariable Long id) {
+                                              @PathVariable String id) {
 
-        final DPlace result = venueService.deletePlace(id);
+        Key key = KeyFactory.stringToKey(id);
+        final DPlace result = venueService.deletePlace(key);
 
         return new ResponseEntity<JVenue>(HttpStatus.OK);
     }
@@ -211,28 +219,23 @@ public class VenueController extends AbstractRestController {
             @RestCode(code=404, message="NOK", description="No venues found")
     })
     @RequestMapping(value="", method= RequestMethod.GET)
-    public ResponseEntity<JCursorPage<JVenue>> getAllVenues(HttpServletRequest request,
-                                                            @PathVariable String domain,
-                                                            @RequestParam(defaultValue = "10") int pagesize,
-                                                            @RequestParam(required = false) String cursor) {
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenues(
+            HttpServletRequest request,
+            @PathVariable String domain,
+            @RequestParam(defaultValue = "10") int pagesize,
+            @RequestParam(required = false) String cursor) {
 
         final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlaces(cursor, pagesize);
 
         if (null == cursorPage)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 3, "Not possible to get all venues", null, "Search failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, "Not possible to get all venues");
 
-        JCursorPage venuePage = new JCursorPage();
-        if (null != cursorPage.getCursorKey())
-            venuePage.setCursor(cursorPage.getCursorKey().toString());
-        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
-        venuePage.setPageSize((long)pagesize);
-
-        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
     /**
      * Get all venues for a parent.
-     * @param id the id of the parent venue
+     * @param parent the id of the parent venue
      * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
      * @param cursor Optional. The current cursor position during pagination.
      *               The next page will be return from this position.
@@ -243,25 +246,21 @@ public class VenueController extends AbstractRestController {
             @RestCode(code=200, message="OK", description="Venues found"),
             @RestCode(code=404, message="NOK", description="No venues found")
     })
-    @RequestMapping(value="parent/{id}", method= RequestMethod.GET)
-    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForParent(HttpServletRequest request,
-                                                            @PathVariable String domain,
-                                                            @RequestParam(defaultValue = "10") int pagesize,
-                                                            @RequestParam(required = false) String cursor,
-                                                            @PathVariable Long id) {
+    @RequestMapping(value="parent/{parent}", method= RequestMethod.GET)
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForParent(
+            HttpServletRequest request,
+            @PathVariable String domain,
+            @RequestParam(defaultValue = "10") int pagesize,
+            @RequestParam(required = false) String cursor,
+            @PathVariable String parent) {
 
-        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesForParent(id, cursor, pagesize);
+        Key parentKey = KeyFactory.stringToKey(parent);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesForParent(parentKey, cursor, pagesize);
 
         if (null == cursorPage)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 4, String.format("Not possible to get all venue for parent:%s", id), null, "Search failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR , String.format("Not possible to get all venue for parent:%s", parent));
 
-        JCursorPage venuePage = new JCursorPage();
-        if (null != cursorPage.getCursorKey())
-            venuePage.setCursor(cursorPage.getCursorKey().toString());
-        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
-        venuePage.setPageSize((long)pagesize);
-
-        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
 
@@ -276,32 +275,27 @@ public class VenueController extends AbstractRestController {
      *               The next page will be return from this position.
      *               If asking for the first page, not cursor should be provided.
      * @param text the search text
-     * @param tagIds Optional. Only venues containing the list of tag ids will be searched
+     * @param tags Optional. Only venues containing the list of tag ids will be searched
      * @return a list of venues matching the search text
      */
     @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
     })
-    @RequestMapping(value="search", method= RequestMethod.GET, params="text")
-    public ResponseEntity<JCursorPage<JVenue>> searchForVenue(HttpServletRequest request,
-                                                     @PathVariable String domain,
-                                                     @RequestParam(required = true) String text,
-                                                     @RequestParam(required = false) Long[] tagIds,
-                                                     @RequestParam(defaultValue = "10") int pagesize,
-                                                     @RequestParam(required = false) String cursor) {
+    @RequestMapping(value="search", method= RequestMethod.GET)
+    public ResponseEntity<JCursorPage<JVenue>> searchForVenue(
+            HttpServletRequest request,
+            @PathVariable String domain,
+            @RequestParam(required = true) String text,
+            @RequestParam(required = false) String[] tags,
+            @RequestParam(defaultValue = "10") int pagesize,
+            @RequestParam(required = false) String cursor) {
 
-        final CursorPage<DPlace, Long> cursorPage = venueService.textSearchForPlaces(text, tagIds, cursor, pagesize);
+        final CursorPage<DPlace, Long> cursorPage = venueService.textSearchForPlaces(text, tags, cursor, pagesize);
 
         if (null == cursorPage)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 5, String.format("Not possible to search with text:%s", text), null, "Search failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, String.format("Not possible to search with text:%s", text));
 
-        JCursorPage venuePage = new JCursorPage();
-        if (null != cursorPage.getCursorKey())
-            venuePage.setCursor(cursorPage.getCursorKey().toString());
-        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
-        venuePage.setPageSize((long)pagesize);
-
-        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
 
@@ -311,35 +305,30 @@ public class VenueController extends AbstractRestController {
      * @param cursor Optional. The current cursor position during pagination.
      *               The next page will be return from this position.
      *               If asking for the first page, not cursor should be provided.
-     * @param tagIds optional. A list a tag ids. Only places with matching tags will be considered
+     * @param tags optional. A list a tag ids. Only places with matching tags will be considered
      * @return a list of venues and a new cursor.
      */
     @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
     })
-    @RequestMapping(value="tags", method= RequestMethod.GET, params = "tagIds")
-    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForTagIds(HttpServletRequest request,
-                                                            @PathVariable String domain,
-                                                            @RequestParam(defaultValue = "10") int pagesize,
-                                                            @RequestParam(required = false) String cursor,
-                                                            @RequestParam(required = true) Long[] tagIds) {
+    @RequestMapping(value="tags", method= RequestMethod.GET)
+    public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForTags(
+            HttpServletRequest request,
+            @PathVariable String domain,
+            @RequestParam(defaultValue = "10") int pagesize,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = true) String[] tags) {
 
         // Check that we have at least one tag
-        if (tagIds.length < 1)
-            throw new BadRequestException(ERROR_CODE_BAD_REQUEST + 3, "At least one tag must be provided", null, "Bad request");
+        if (tags.length < 1)
+            throw new BadRequestException(ERR_BAD_REQUEST, "At least one tag must be provided");
 
-        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesForTags(tagIds, cursor, pagesize);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getAllPlacesForTags(tags, cursor, pagesize);
 
         if (null == cursorPage)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 6, String.format("Not possible to search with tags:%s", tagIds), null, "Search failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, String.format("Not possible to search with tags:%s", tags));
 
-        JCursorPage venuePage = new JCursorPage();
-        if (null != cursorPage.getCursorKey())
-            venuePage.setCursor(cursorPage.getCursorKey().toString());
-        venuePage.setItems(CONVERTER.convert(cursorPage.getItems()));
-        venuePage.setPageSize((long)pagesize);
-
-        return new ResponseEntity<JCursorPage<JVenue>>(venuePage, HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
 
@@ -352,28 +341,29 @@ public class VenueController extends AbstractRestController {
      * @param latitude optional, the latitude to search around
      * @param longitude optional, the longitude to search around
      * @param radius optional, the radius i meter. Default 1500m
-     * @param tagIds optional. A list a tag ids. Only places with matching tags will be considered
+     * @param tags optional. A list a tag ids. Only places with matching tags will be considered
      * @return a list of products
      */
     @RestReturn(value=JVenue.class, entity=JVenue.class, code={
             @RestCode(code=200, message="OK", description="Venues found"),
     })
     @RequestMapping(value="nearby", method= RequestMethod.GET)
-    public ResponseEntity<Collection<JVenue>> getNearbyVenues(HttpServletRequest request,
-                                                            @PathVariable String domain,
-                                                            @RequestParam(defaultValue = "10") int pagesize,
-                                                            @RequestParam(required = false) String cursor,
-                                                            @RequestParam(required = true) Float latitude,
-                                                            @RequestParam(required = true) Float longitude,
-                                                            @RequestParam(defaultValue = "2500") int radius,
-                                                            @RequestParam(required = true) Long[] tagIds) {
+    public ResponseEntity<JCursorPage<JVenue>> getNearbyVenues(
+            HttpServletRequest request,
+            @PathVariable String domain,
+            @RequestParam(defaultValue = "10") int pagesize,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = true) Float latitude,
+            @RequestParam(required = true) Float longitude,
+            @RequestParam(defaultValue = "3000") int radius,
+            @RequestParam(required = true) String[] tags) {
 
-        final CursorPage<DPlace, Long> cursorPage = venueService.getNearbyPlaces(latitude, longitude, radius, tagIds, cursor, pagesize);
+        final CursorPage<DPlace, Long> cursorPage = venueService.getNearbyPlaces(latitude, longitude, radius, tags, cursor, pagesize);
 
         if (null == cursorPage)
-            throw new ServerErrorException(ERROR_CODE_SEVER_ERROR + 7, String.format("Not possible to search nearby with lat:%s and lon:%s", latitude, longitude), null, "Search failed");
+            throw new ServerErrorException(ERR_SERVER_ERROR, String.format("Not possible to search nearby with lat:%s and lon:%s", latitude, longitude));
 
-        return new ResponseEntity<Collection<JVenue>>((Collection<JVenue>)CONVERTER.convert(cursorPage.getItems()), HttpStatus.OK);
+        return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
 

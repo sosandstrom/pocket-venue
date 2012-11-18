@@ -37,6 +37,11 @@
     <!--           Controllers             -->
     <bean class="com.wadpam.open.web.MonitorController" />
 
+    <bean class="com.wadpam.open.web.BlobController" />
+
+    <bean class="com.wadpam.open.web.CommonController" />
+
+
     <!--           Transaction management       -->
     <import resource="classpath:/spring-transaction.xml" />
 
