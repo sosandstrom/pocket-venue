@@ -7,9 +7,7 @@ Datastore indexes config
 
 Bring in security and app registration, move to common
 
-
 i18nTranslation Move to open.
-
 
 Unit/integration tests
 
@@ -22,14 +20,10 @@ Integration with Google places?
 Must
 ====
 
-
-Upload a CSV file to create the venues
-
 Generate documentation and deploy
 
 Return loclization in tag lists
 
-Get root places
 
 Done
 ====
@@ -64,6 +58,11 @@ Update parent pom with same as Pocket review
 Add the localization of text (same as TwoForOne categories). Also URL.
 
 Upload images to blobstore
+Get root places (not working)
+
+Upload a CSV file to create the venues
+
+
 
 
 

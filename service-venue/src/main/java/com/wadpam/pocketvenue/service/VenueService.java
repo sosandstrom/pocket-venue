@@ -1,22 +1,28 @@
 package com.wadpam.pocketvenue.service;
 
+import au.com.bytecode.opencsv.CSVReader;
 import com.google.appengine.api.datastore.*;
+import com.wadpam.open.exceptions.ServerErrorException;
 import com.wadpam.open.transaction.Idempotent;
 import com.wadpam.pocketvenue.dao.DPlaceDao;
 import com.wadpam.pocketvenue.dao.DTagDao;
 import com.wadpam.pocketvenue.domain.DPlace;
 import com.wadpam.pocketvenue.domain.DTag;
 import com.wadpam.pocketvenue.json.JVenue;
-import com.wadpam.server.exceptions.BadRequestException;
-import com.wadpam.server.exceptions.NotFoundException;
+import com.wadpam.open.exceptions.BadRequestException;
+import com.wadpam.open.exceptions.NotFoundException;
 import net.sf.mardao.core.CursorPage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.IllegalFormatException;
 
 /**
  * Implementation of the venue service.
@@ -215,6 +221,167 @@ public class VenueService {
         return placeDao.searchInIndexForNearby(cursor, pageSize, latitude, longitude, radius, tagCollection);
     }
 
+    // Create venues from a CSV input stream
+    public int addVenueFromCSV(InputStream inputStream, Key parentKey) throws IOException {
+
+        // Check that the parent exist
+        if (null != parentKey) {
+            DPlace parentPlace = placeDao.findByPrimaryKey(parentKey);
+            if (null == parentPlace) {
+                LOG.info("Trying to create a place from CSV file with unknown parent:{}", parentKey);
+                throw new BadRequestException(ERR_BAD_REQUEST, String.format("The provided parent can not be found:%s", parentKey));
+            }
+        }
+
+        // Make 2 passes through the CSV
+        // 1st time check for errors
+        // 2nd time, if there are no errors parse and store in datastore
+
+        // Get a reader
+        CSVReader csvReader = new CSVReader(new InputStreamReader(inputStream), ';');
+
+        boolean hasError = false;
+        Collection<String> errors = new ArrayList<String>();
+        int row = 0;
+        String [] nextLine;
+        // Check for errors
+        while ((nextLine = csvReader.readNext()) != null) {
+            row++;
+            LOG.debug("Check row:{}:{}", row, nextLine);
+
+            // Check syntax
+            try {
+                DPlace dPlace = createDPlaceFromCSV(nextLine, parentKey);
+            } catch (Exception e) {
+                // Got a parsing error
+                LOG.info("Error parsing CSV file in row:{} with reason:{}", row, e.getMessage());
+                errors.add(String.format("Error in row:%s with reason:%s", row, e.getMessage()));
+                hasError = true;
+            }
+        }
+
+        // Check if any errors was detected
+        if (hasError) {
+            throw new ServerErrorException(ERR_BAD_REQUEST,
+                    String.format("Errors parsing csv file with reasons:%s", errors.toString()));
+            // TODO Find a better solution
+        }
+
+        // Make a second run and write to the datastore
+        while ((nextLine = csvReader.readNext()) != null) {
+            DPlace dPlace = createDPlaceFromCSV(nextLine, parentKey);
+            placeDao.persist(dPlace);
+        }
+
+        return row;
+    }
+
+    // Create a Place from a line of CSV
+    private DPlace createDPlaceFromCSV(String[] columns, Key parentKey) {
+
+        // Check length
+        if (columns.length != 20)
+            throw new IllegalArgumentException("The CSV list must contain 20 elements");
+
+        // Check mandatory parameters
+        if (columns[0].isEmpty())
+            throw new IllegalArgumentException("Venue name must be provided");
+
+        DPlace dPlace = new DPlace();
+
+        // If parent is provided set it
+        if (null != parentKey) {
+            dPlace.setParent(parentKey);
+        }
+
+        String LIST_SPLIT_TOKEN = "#";
+        int column = 0;
+        try {
+            // name; 0
+            dPlace.setName(columns[column]);
+            // shortDescription; 1
+            if (!columns[++column].isEmpty())
+                dPlace.setShortDescription(columns[column]);
+            // description; 2
+            if (!columns[++column].isEmpty())
+                dPlace.setDescription(columns[column]);
+            // openingHours; 3
+            if (!columns[++column].isEmpty()) {
+                String[] openingHours = columns[column].split(LIST_SPLIT_TOKEN);
+                if (openingHours.length != 7)
+                    throw new IllegalArgumentException();
+                dPlace.setOpeningHours(Arrays.asList(openingHours));
+            }
+            // tags; 4
+            if (!columns[++column].isEmpty()) {
+                String[] tags = columns[column].split(LIST_SPLIT_TOKEN);
+                dPlace.setTags(Arrays.asList(tags));
+            }
+            // street; 5
+            if (!columns[++column].isEmpty())
+                dPlace.setStreet(columns[column]);
+            // cityArea; 6
+            if (!columns[++column].isEmpty())
+                dPlace.setCityArea(columns[column]);
+            // city; 7
+            if (!columns[++column].isEmpty())
+                dPlace.setCity(columns[column]);
+            // county; 8
+            if (!columns[++column].isEmpty())
+                dPlace.setCounty(columns[column]);
+            // postalCode; 9
+            if (!columns[++column].isEmpty())
+                dPlace.setPostalCode(columns[column]);
+            // country; 10
+            if (!columns[++column].isEmpty())
+                dPlace.setCountry(columns[column]);
+            if (!columns[++column].isEmpty()) {
+                // latitude; 11
+                float lat = Float.parseFloat(columns[column]);
+                // longitude; 12
+                float lon = Float.parseFloat(columns[++column]);
+                GeoPt point = new GeoPt(lat, lon);
+                dPlace.setLocation(point);
+            }
+            // phoneNumber; 13
+            if (!columns[++column].isEmpty())
+                dPlace.setPhoneNumber(columns[column]);
+            // email; 14
+            if (!columns[++column].isEmpty())
+                dPlace.setEmail(new Email(columns[column]));
+            // webUrl; 15
+            if (!columns[++column].isEmpty())
+                dPlace.setWebUrl(new Link(columns[column]));
+            // facebookUrl; 16
+            if (!columns[++column].isEmpty())
+                dPlace.setFacebookUrl(new Link(columns[column]));
+            // twitterUrl; 17
+            if (!columns[++column].isEmpty())
+                dPlace.setTwitterUrl(new Link(columns[column]));
+            // logoUrl; 18
+            if (!columns[++column].isEmpty())
+                dPlace.setLogoUrl(new Link(columns[column]));
+            // imageUrls 19
+            if (!columns[++column].isEmpty()) {
+                String[] imageUrls = columns[column].split(LIST_SPLIT_TOKEN);
+                Collection<Link> urlCollection = new ArrayList<Link>();
+                for (String url : imageUrls) {
+                    LOG.debug("Image url:{}", url);
+                    urlCollection.add(new Link(url));
+                }
+                dPlace.setImageUrls(urlCollection);
+            }
+        } catch (Exception e) {
+            LOG.info(String.format("CSV parsing error in column:%s value:%s reason:%s",
+                    column, columns[column], e));
+            throw new IllegalArgumentException(String.format("Error in column:%s value:%s reason%s",
+                    column, columns[column], e));
+        }
+
+        return dPlace;
+    }
+
+
     /* Tag related methods */
 
     // Create a new tag
@@ -353,5 +520,6 @@ public class VenueService {
     public void setTagDao(DTagDao tagDao) {
         this.tagDao = tagDao;
     }
+
 
 }

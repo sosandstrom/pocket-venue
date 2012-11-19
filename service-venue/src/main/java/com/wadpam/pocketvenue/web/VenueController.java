@@ -1,5 +1,10 @@
 package com.wadpam.pocketvenue.web;
 
+import au.com.bytecode.opencsv.CSVReader;
+import com.google.appengine.api.blobstore.BlobKey;
+import com.google.appengine.api.blobstore.BlobstoreInputStream;
+import com.google.appengine.api.blobstore.BlobstoreService;
+import com.google.appengine.api.blobstore.BlobstoreServiceFactory;
 import com.google.appengine.api.datastore.Key;
 import com.google.appengine.api.datastore.KeyFactory;
 import com.wadpam.docrest.domain.RestCode;
@@ -25,7 +30,14 @@ import org.springframework.web.servlet.view.RedirectView;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * The venue controller implements all REST methods related to venues.
@@ -38,9 +50,10 @@ public class VenueController extends AbstractRestController {
 
     private static final int ERR_NOT_FOUND = VenueService.ERR_VENUE_SERVICE + 201;
     private final int ERR_BAD_REQUEST = VenueService.ERR_VENUE_SERVICE + 202;
-    private final int ERR_SERVER_ERROR = VenueService.ERR_VENUE_SERVICE + 202;
+    private final int ERR_SERVER_ERROR = VenueService.ERR_VENUE_SERVICE + 203;
 
     private static final Converter CONVERTER = new Converter();
+    private BlobstoreService blobstoreService = BlobstoreServiceFactory.getBlobstoreService();
 
     private VenueService venueService;
 
@@ -263,7 +276,6 @@ public class VenueController extends AbstractRestController {
         return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
-
     /**
      * Get all venues with no parent.
      * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
@@ -291,11 +303,6 @@ public class VenueController extends AbstractRestController {
         return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
 
-
-
-    // TODO Get root venues
-
-
     /**
      * Search for venues by text.
      * @param pagesize Optional. The number of venues to return in this page. Default value is 10.
@@ -307,7 +314,7 @@ public class VenueController extends AbstractRestController {
      * @return a list of venues matching the search text
      */
     @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
-            @RestCode(code=200, message="OK", description="Venues found"),
+            @RestCode(code=200, message="OK", description="Venues found")
     })
     @RequestMapping(value="search", method= RequestMethod.GET)
     public ResponseEntity<JCursorPage<JVenue>> searchForVenue(
@@ -337,7 +344,7 @@ public class VenueController extends AbstractRestController {
      * @return a list of venues and a new cursor.
      */
     @RestReturn(value=JCursorPage.class, entity=JCursorPage.class, code={
-            @RestCode(code=200, message="OK", description="Venues found"),
+            @RestCode(code=200, message="OK", description="Venues found")
     })
     @RequestMapping(value="tags", method= RequestMethod.GET)
     public ResponseEntity<JCursorPage<JVenue>> getAllVenuesForTags(
@@ -373,7 +380,7 @@ public class VenueController extends AbstractRestController {
      * @return a list of products
      */
     @RestReturn(value=JVenue.class, entity=JVenue.class, code={
-            @RestCode(code=200, message="OK", description="Venues found"),
+            @RestCode(code=200, message="OK", description="Venues found")
     })
     @RequestMapping(value="nearby", method= RequestMethod.GET)
     public ResponseEntity<JCursorPage<JVenue>> getNearbyVenues(
@@ -393,6 +400,74 @@ public class VenueController extends AbstractRestController {
 
         return new ResponseEntity<JCursorPage<JVenue>>((JCursorPage<JVenue>)CONVERTER.convertPage(cursorPage), HttpStatus.OK);
     }
+
+
+    /**
+     * Get a url where you can upload a CVS file with venue data.
+     * @return a url where a CSV file can be uploaded
+     */
+    @RestReturn(value=Map.class, entity=Map.class, code={
+            @RestCode(code=200, message="OK", description="Venue CSV file upload url create")
+    })
+    @RequestMapping(value="csv", method= RequestMethod.GET)
+    @ResponseBody
+    public Map<String, String> getCSVUploadUrl(HttpServletRequest request) {
+
+        String callbackUrl = request.getRequestURI();
+
+        Map<String, String> response = new HashMap<String, String>();
+        response.put("url", blobstoreService.createUploadUrl(callbackUrl));
+
+        return response;
+    }
+
+    /**
+     * Upload a CSV file to blobstore.
+     * Expected format
+     * name;shortDescription;description;openingHours;tags;street;cityArea;city;county;postalCode;country;latitude;longitude;phoneNumber;email;webUrl;facebookUrl;twitterUrl;logoUrl;imageUrls
+     * In columns that contain a list of values, e.g. opening hours, individual elements will be separated by #
+     * First each row is checked for errors. If errors are found the operation in aborted (all rows
+     * must be validated before they are stored to the datastore).
+     * @return The number of venues that was created
+     */
+    @RestReturn(value=Map.class, entity=Map.class, code={
+            @RestCode(code=200, message="OK", description="Venue CSV file uploaded")
+    })
+    @RequestMapping(value="csv", method= RequestMethod.POST)
+    @ResponseBody
+    public Map<String, Integer> csvUploadCallback(
+            HttpServletRequest request,
+            @RequestParam(required = false) String parent) throws IOException {
+        LOG.debug("Venue CSV upload callback");
+
+        Map<String, List<BlobKey>> blobKeys = blobstoreService.getUploads(request);
+
+        // Get the blobkey
+        BlobKey blobKey = null;
+        Iterable<BlobKey> iterable = null;
+        if (blobKeys.values().iterator().hasNext()) {
+            blobKey = blobKeys.values().iterator().next().get(0);
+        }
+
+        if (null == blobKey) {
+            // Not possible to get the blob key
+            throw new ServerErrorException(ERR_SERVER_ERROR, "Not possible to get the blob key for the CSV file");
+        }
+
+        Map<String, Integer> response = new HashMap<String, Integer>();
+        try {
+            InputStream inputStream = new BlobstoreInputStream(blobKey);
+            Key parentKey = parent != null ? KeyFactory.stringToKey(parent) : null;
+            int rows = this.venueService.addVenueFromCSV(inputStream, parentKey);
+            response.put("rows", rows);
+        } finally {
+            // Make sure we always delete the blob
+            blobstoreService.delete(blobKey);
+        }
+
+        return response;
+    }
+
 
 
     // Setters
