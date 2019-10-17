@@ -15,7 +15,7 @@
         <gae.version>1.7.0</gae.version>
         <gae.application.version>lab</gae.application.version>
         <gae.application.id>open-user</gae.application.id>
-        <spring.version>3.1.1.RELEASE</spring.version>
+        <spring.version>5.2.0.RELEASE</spring.version>
         <spring.security.version>3.1.0.RELEASE</spring.security.version>
         <org.springframework.social.version>1.0.1.RELEASE</org.springframework.social.version>
         <openserver.version>4-SNAPSHOT</openserver.version>
